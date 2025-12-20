@@ -5,8 +5,10 @@
         <field name="name">agno.agent.list</field>
         <field name="model">agno.agent</field>
         <field name="arch" type="xml">
-            <list string="Agno Agents" decoration-success="status=='running'"
-                  decoration-danger="status=='error'" decoration-muted="status=='stopped'">
+            <list string="Agno Agents"
+                  decoration-success="status=='running'"
+                  decoration-danger="status=='error'"
+                  decoration-muted="status=='stopped'">
                 <field name="agent_name"/>
                 <field name="model_id"/>
                 <field name="status" widget="badge"/>
@@ -33,6 +35,7 @@
     <record id="view_agno_agent_form" model="ir.ui.view">
         <field name="name">agno.agent.form</field>
         <field name="model">agno.agent</field>
+        <field name="priority" eval="100"/>
         <field name="arch" type="xml">
             <form string="Agno Agent">
                 <header>
@@ -46,8 +49,11 @@
                             string="Stop Agent"
                             class="btn-secondary"
                             invisible="not is_active"/>
-                    <field name="status" widget="statusbar" statusbar_visible="stopped,starting,running,stopping,error"/>
+                    <field name="status"
+                           widget="statusbar"
+                           statusbar_visible="stopped,starting,running,stopping,error"/>
                 </header>
+
                 <sheet>
                     <div class="oe_title">
                         <h1>
@@ -58,7 +64,7 @@
                             <span class="ms-2">Active</span>
                         </h2>
                     </div>
-                    
+
                     <group>
                         <group string="Basic Information">
                             <field name="agent_name"/>
@@ -90,7 +96,7 @@
                                 </group>
                             </group>
                         </page>
-                        
+
                         <page string="Model Configuration" name="model">
                             <group>
                                 <group string="Model Settings">
@@ -101,10 +107,11 @@
                             </group>
                             <div class="alert alert-info" role="alert">
                                 <strong>Note:</strong> Make sure the API key environment variable is set in your system.
-                                <br/>Current environment variable: <code><field name="api_key_env" readonly="1"/></code>
+                                <br/>Current environment variable:
+                                <code><field name="api_key_env" readonly="1"/></code>
                             </div>
                         </page>
-                        
+
                         <page string="Status &amp; Logs" name="status">
                             <group>
                                 <field name="error_message" widget="text" readonly="1"
@@ -117,11 +124,6 @@
                         </page>
                     </notebook>
                 </sheet>
-                <div class="oe_chatter">
-                    <field name="message_follower_ids"/>
-                    <field name="activity_ids"/>
-                    <field name="message_ids"/>
-                </div>
             </form>
         </field>
     </record>
@@ -142,11 +144,9 @@
                     <t t-name="card">
                         <div class="oe_kanban_card oe_kanban_global_click">
                             <div class="o_kanban_image">
-                                <i class="fa fa-robot fa-3x" 
-                                   style="color: green;" 
+                                <i class="fa fa-robot fa-3x" style="color: green;"
                                    t-if="record.is_active.raw_value"/>
-                                <i class="fa fa-robot fa-3x" 
-                                   style="color: gray;" 
+                                <i class="fa fa-robot fa-3x" style="color: gray;"
                                    t-if="!record.is_active.raw_value"/>
                             </div>
                             <div class="oe_kanban_details">
@@ -156,32 +156,29 @@
                                 <div class="o_kanban_record_subtitle">
                                     <field name="model_id"/>
                                 </div>
+
                                 <div class="oe_kanban_bottom_right">
-                                    <span class="badge badge-pill" 
-                                          style="background-color: green;" 
+                                    <span class="badge badge-pill" style="background-color: green;"
                                           t-if="record.status.raw_value == 'running'">
                                         Running on port <field name="port"/>
                                     </span>
-                                    <span class="badge badge-pill" 
-                                          style="background-color: red;" 
+                                    <span class="badge badge-pill" style="background-color: red;"
                                           t-if="record.status.raw_value == 'error'">
                                         Error
                                     </span>
-                                    <span class="badge badge-pill" 
-                                          style="background-color: gray;" 
+                                    <span class="badge badge-pill" style="background-color: gray;"
                                           t-if="record.status.raw_value == 'stopped'">
                                         Stopped
                                     </span>
                                 </div>
+
                                 <div class="oe_kanban_bottom_left">
-                                    <button name="action_start_agent" 
-                                            type="object" 
+                                    <button name="action_start_agent" type="object"
                                             class="btn btn-primary btn-sm"
                                             t-if="!record.is_active.raw_value">
                                         <i class="fa fa-play"/> Start
                                     </button>
-                                    <button name="action_stop_agent" 
-                                            type="object" 
+                                    <button name="action_stop_agent" type="object"
                                             class="btn btn-secondary btn-sm"
                                             t-if="record.is_active.raw_value">
                                         <i class="fa fa-stop"/> Stop
@@ -198,13 +195,9 @@
     <!-- Action for Agno Agents -->
     <record id="action_agno_agent" model="ir.actions.act_window">
         <field name="name">Agno Agents</field>
+        <field name="type">ir.actions.act_window</field>
         <field name="res_model">agno.agent</field>
         <field name="view_mode">kanban,list,form</field>
-        <field name="views" eval="[
-            (ref('view_agno_agent_kanban'), 'kanban'),
-            (ref('view_agno_agent_list'), 'list'),
-            (ref('view_agno_agent_form'), 'form')
-        ]"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first Agno Agent!
@@ -214,5 +207,27 @@
                 Configure the agent properties, model settings, and start the agent to make it accessible on the specified port.
             </p>
         </field>
+    </record>
+
+    <!-- Explicit view sequence for the action -->
+    <record id="action_agno_agent_view_kanban" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_agno_agent_kanban"/>
+        <field name="act_window_id" ref="action_agno_agent"/>
+    </record>
+
+    <record id="action_agno_agent_view_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_agno_agent_list"/>
+        <field name="act_window_id" ref="action_agno_agent"/>
+    </record>
+
+    <record id="action_agno_agent_view_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="3"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_agno_agent_form"/>
+        <field name="act_window_id" ref="action_agno_agent"/>
     </record>
 </odoo>
