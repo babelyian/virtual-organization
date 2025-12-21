@@ -1,7 +1,7 @@
 import os
 import subprocess
 import time
-
+import sys
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError, UserError
 
@@ -94,14 +94,6 @@ class AgnoAgent(models.Model):
         if self.is_active:
             raise UserError(_("Agent is already active"))
 
-        # Check if API key environment variable is set (from Odoo server environment)
-        api_key = os.environ.get(self.api_key_env)
-        if not api_key:
-            raise UserError(_(
-                f"API key environment variable '{self.api_key_env}' is not set. "
-                f"Please set it in your Odoo service/container environment."
-            ))
-
         try:
             self.status = 'starting'
             self.error_message = False
@@ -111,13 +103,13 @@ class AgnoAgent(models.Model):
 
             with open(script_path, 'w', encoding='utf-8') as f:
                 f.write(script_content)
-
+            VENV_PY = "/opt/odoo19/venv/bin/python"
             process = subprocess.Popen(
-                ['python', script_path],
+                [VENV_PY, script_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 preexec_fn=os.setsid
-            )
+)
 
             time.sleep(2)
 
@@ -192,14 +184,10 @@ from agno.db.sqlite import SqliteDb
 
 os.environ.setdefault("AGNO_TELEMETRY", "false")
 
-API_KEY = os.environ.get("{self.api_key_env}")
-if API_KEY is None:
-    raise RuntimeError("Please set {self.api_key_env} in your environment")
-
 model = OpenAILike(
     id="{self.model_id}",
     base_url="{self.base_url}",
-    api_key=API_KEY,
+    api_key="{self.api_key_env}",
 )
 
 db = SqliteDb(db_file="{self.db_file}")
