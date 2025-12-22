@@ -15,9 +15,6 @@ class AgnoAgent(models.Model):
     _rec_name = "agent_name"
     _inherit = []
 
-    # ------------------------
-    # Fields
-    # ------------------------
     agent_name = fields.Char("Agent Name", required=True, help="Name of the Agno agent")
     agent_role = fields.Text(
         "Agent Role",
@@ -29,7 +26,7 @@ class AgnoAgent(models.Model):
     model_id = fields.Char(
         "Model ID",
         required=True,
-        default="qwen3:latest",
+        default="gpt-oss:20b",
         help="AI model identifier (e.g., qwen3:latest)",
     )
     base_url = fields.Char(
@@ -38,10 +35,11 @@ class AgnoAgent(models.Model):
         default="https://chat.aiahura.com/api/v1",
         help="API base URL for the model",
     )
-    api_key_env = fields.Char(
-        "API Key Environment Variable",
-        default="API_KEY",
-        help="Environment variable name containing the API key",
+
+    api_key = fields.Char(
+        "API Key",
+        required=True,
+        help="API key used for the model provider (stored in Odoo).",
     )
 
     add_history_to_context = fields.Boolean("Add History to Context", default=True)
@@ -74,12 +72,6 @@ class AgnoAgent(models.Model):
 
     process_pid = fields.Integer("Process PID", readonly=True)
 
-    # Optional: if you want to keep script path for debugging
-    # script_path = fields.Char("Script Path", readonly=True)
-
-    # ------------------------
-    # Constraints
-    # ------------------------
     @api.constrains("agent_name")
     def _check_agent_name(self):
         for record in self:
@@ -92,10 +84,15 @@ class AgnoAgent(models.Model):
             if record.port < 1 or record.port > 65535:
                 raise ValidationError(_("Port must be between 1 and 65535"))
 
-    # ------------------------
-    # Process/Port helpers
-    # ------------------------
-    def _ss_available(self) -> bool:
+    def _script_path(self) -> str:
+        self.ensure_one()
+        return f"/tmp/agno_agent_{self.id}.py"
+
+    def _log_path(self) -> str:
+        self.ensure_one()
+        return f"/tmp/agno_agent_{self.id}.log"
+
+    def _ss_available(self):
         try:
             subprocess.run(["ss", "-h"], capture_output=True, text=True, check=False)
             return True
@@ -103,10 +100,6 @@ class AgnoAgent(models.Model):
             return False
 
     def _get_listening_pids(self, port: int):
-        """
-        Return a set of PIDs that are LISTENing on TCP port using `ss`.
-        ss output contains fragments like: users:(("python",pid=1234,fd=3))
-        """
         if not self._ss_available():
             raise UserError(
                 _(
@@ -124,11 +117,10 @@ class AgnoAgent(models.Model):
         out = (r.stdout or "") + "\n" + (r.stderr or "")
         return set(int(m.group(1)) for m in re.finditer(r"pid=(\d+)", out))
 
-    def _port_is_listening(self, port: int) -> bool:
+    def _port_is_listening(self, port: int):
         try:
             return bool(self._get_listening_pids(port))
         except Exception:
-            # If we cannot determine, be conservative (assume might be listening)
             return True
 
     def _kill_pids(self, pids, sig):
@@ -141,10 +133,6 @@ class AgnoAgent(models.Model):
                 raise UserError(_(f"No permission to kill pid {pid}: {e}"))
 
     def _kill_by_port(self, port: int, term_wait: float = 2.0) -> bool:
-        """
-        Kill whatever is listening on `port`. SIGTERM -> wait -> SIGKILL if still listening.
-        Returns True if we found any pids to kill.
-        """
         pids = self._get_listening_pids(port)
         if not pids:
             return False
@@ -158,11 +146,7 @@ class AgnoAgent(models.Model):
 
         return True
 
-    def _kill_process_group(self, pid: int, term_wait: float = 2.0) -> bool:
-        """
-        Try to kill the process group of a PID.
-        Returns True if we attempted to kill a group, False if PID didn't exist.
-        """
+    def _kill_process_group(self, pid: int, term_wait: float = 2.0):
         try:
             pgid = os.getpgid(pid)
         except ProcessLookupError:
@@ -177,7 +161,6 @@ class AgnoAgent(models.Model):
 
         time.sleep(term_wait)
 
-        # If still exists, SIGKILL
         try:
             os.killpg(pgid, 0)
             os.killpg(pgid, signal.SIGKILL)
@@ -188,51 +171,48 @@ class AgnoAgent(models.Model):
 
         return True
 
-    # ------------------------
-    # Actions
-    # ------------------------
     def action_start_agent(self):
-        """Start the Agno agent"""
         self.ensure_one()
 
         if self.is_active:
             raise UserError(_("Agent is already active"))
 
-        # If port is already taken, fail early (prevents "running" state while another process owns port)
-        if self._ss_available():
-            if self._port_is_listening(self.port):
-                raise UserError(_(f"Port {self.port} is already in use. Stop the process using it or change the port."))
+        if self._ss_available() and self._port_is_listening(self.port):
+            raise UserError(_(f"Port {self.port} is already in use. Stop the process using it or change the port."))
 
         try:
             self.status = "starting"
             self.error_message = False
 
             script_content = self._generate_agent_script()
-            script_path = f"/tmp/agno_agent_{self.id}.py"
+            script_path = self._script_path()
+            log_path = self._log_path()
 
             with open(script_path, "w", encoding="utf-8") as f:
                 f.write(script_content)
 
+            try:
+                with open(log_path, "w", encoding="utf-8") as lf:
+                    lf.write("")
+            except Exception:
+                pass
+
             VENV_PY = "/opt/odoo19/venv/bin/python"
 
-            # Important: don't pipe stdout/stderr unless you also consume them,
-            # otherwise the child can block when buffers fill.
-            # Use DEVNULL to avoid blocking + keep Odoo responsive.
+            logf = open(log_path, "a", encoding="utf-8")
+
             process = subprocess.Popen(
-                [VENV_PY, script_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                [VENV_PY, "-u", script_path],
+                stdout=logf,
+                stderr=logf,
                 preexec_fn=os.setsid,
                 close_fds=True,
             )
 
             time.sleep(2)
-
             if process.poll() is None:
-                # Optionally verify the port is listening (best-effort)
                 if self._ss_available():
-                    # give it a bit more time for server to bind
-                    for _ in range(10):
+                    for i in range(10):
                         if self._port_is_listening(self.port):
                             break
                         time.sleep(0.3)
@@ -244,13 +224,10 @@ class AgnoAgent(models.Model):
                         "process_pid": process.pid,
                         "last_started": fields.Datetime.now(),
                         "error_message": False,
-                        # "script_path": script_path,
                     }
                 )
             else:
-                # Process exited quickly; try to capture a useful error message by running synchronously
-                # (we used DEVNULL above, so we re-run to capture)
-                r = subprocess.run([VENV_PY, script_path], capture_output=True, text=True, check=False)
+                r = subprocess.run([VENV_PY, "-u", script_path], capture_output=True, text=True, check=False)
                 error_msg = (r.stderr or r.stdout or "").strip()
                 if not error_msg:
                     error_msg = "Agent process exited immediately without output."
@@ -262,7 +239,6 @@ class AgnoAgent(models.Model):
             raise UserError(_(f"Error starting agent: {str(e)}"))
 
     def action_stop_agent(self):
-        """Stop the Agno agent (kill process group and/or the process that owns the port)"""
         self.ensure_one()
 
         if not self.is_active:
@@ -273,20 +249,15 @@ class AgnoAgent(models.Model):
 
             attempted_any = False
 
-            # 1) Try killing the process group we started
             if self.process_pid:
                 attempted_any = self._kill_process_group(self.process_pid, term_wait=2.0) or attempted_any
 
-            # 2) Ensure the port is freed (your requirement: kill process at specified port)
-            if self._ss_available():
+            if self._ss_available() and self._port_is_listening(self.port):
+                attempted_any = self._kill_by_port(self.port, term_wait=2.0) or attempted_any
+
                 if self._port_is_listening(self.port):
-                    attempted_any = self._kill_by_port(self.port, term_wait=2.0) or attempted_any
+                    raise UserError(_(f"Could not stop agent: port {self.port} is still in use."))
 
-                    # Verify again
-                    if self._port_is_listening(self.port):
-                        raise UserError(_(f"Could not stop agent: port {self.port} is still in use."))
-
-            # If neither PID nor port checks worked, still mark stopped, but keep a warning
             warn = False if attempted_any else _("Stop requested, but no running process was found.")
 
             self.write(
@@ -303,65 +274,129 @@ class AgnoAgent(models.Model):
             self.write({"status": "error", "error_message": str(e)})
             raise UserError(_(f"Error stopping agent: {str(e)}"))
 
-    # ------------------------
-    # Script generator
-    # ------------------------
     def _generate_agent_script(self):
-        """Generate the Python script to run the Agno agent"""
-        # NOTE: api_key must be the VALUE of env var, not its NAME.
-        # We also set PYTHONUNBUFFERED for easier debugging if you later log to a file.
+        """
+        Generates a python script that logs:
+        - configuration values
+        - masked API key preview
+        - httpx/httpcore debug logs (helpful for streaming failures)
+        - tracebacks on crash
+        """
+        self.ensure_one()
+        log_path = self._log_path()
+        script_path = self._script_path()
+
         script = f'''
 import os
+import sys
+import time
+import logging
+import traceback
+
 from agno.agent import Agent
 from agno.models.openai.like import OpenAILike
 from agno.os import AgentOS
 from agno.db.sqlite import SqliteDb
 
-os.environ.setdefault("AGNO_TELEMETRY", "false")
-os.environ.setdefault("PYTHONUNBUFFERED", "1")
+LOG_PATH = {repr(log_path)}
+SCRIPT_PATH = {repr(script_path)}
 
-api_key = os.getenv("{self.api_key_env}")  # VALUE, not the env var name
+def mask_secret(value: str, show: int = 6) -> str:
+    if not value:
+        return "<EMPTY>"
+    if len(value) <= show:
+        return "*" * len(value)
+    return value[:show] + ("*" * (len(value) - show))
 
-model = OpenAILike(
-    id="{self.model_id}",
-    base_url="{self.base_url}",
-    api_key=api_key,
-)
+def setup_logging():
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_PATH, encoding="utf-8"),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
+    # Enable verbose HTTP tracing (very useful for "Unknown model error" / streaming issues)
+    logging.getLogger("httpx").setLevel(logging.DEBUG)
+    logging.getLogger("httpcore").setLevel(logging.DEBUG)
 
-db = SqliteDb(db_file="{self.db_file}")
+setup_logging()
+log = logging.getLogger("agno_agent")
 
-agent = Agent(
-    name="{self.agent_name}",
-    role="""{self.agent_role}""",
-    model=model,
-    instructions="""{self.instructions or ''}""",
-    db=db,
-    add_history_to_context={self.add_history_to_context},
-    add_datetime_to_context={self.add_datetime_to_context},
-    markdown={self.markdown},
-    debug_mode={self.debug_mode},
-    num_history_runs={self.num_history_runs},
-)
+def main():
+    os.environ.setdefault("AGNO_TELEMETRY", "false")
+    os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
-agent_os = AgentOS(agents=[agent])
-app = agent_os.get_app()
+    api_key = {repr(self.api_key or "")}
+
+    log.info("=== Agno Agent starting ===")
+    log.info("time=%s", time.strftime("%Y-%m-%d %H:%M:%S"))
+    log.info("python=%s", sys.executable)
+    log.info("cwd=%s", os.getcwd())
+    log.info("script_path=%s", SCRIPT_PATH)
+    log.info("log_path=%s", LOG_PATH)
+
+    log.info("AGNO_TELEMETRY=%s", os.environ.get("AGNO_TELEMETRY"))
+    log.info("PYTHONUNBUFFERED=%s", os.environ.get("PYTHONUNBUFFERED"))
+
+    log.info("agent_name=%s", {repr(self.agent_name or "")})
+    log.info("host=%s", {repr(self.host or "0.0.0.0")})
+    log.info("port=%s", {int(self.port)})
+    log.info("model_id=%s", {repr(self.model_id or "")})
+    log.info("base_url=%s", {repr(self.base_url or "")})
+    log.info("db_file=%s", {repr(self.db_file or "agent.db")})
+
+    log.info("add_history_to_context=%s", {bool(self.add_history_to_context)})
+    log.info("add_datetime_to_context=%s", {bool(self.add_datetime_to_context)})
+    log.info("markdown=%s", {bool(self.markdown)})
+    log.info("debug_mode=%s", {bool(self.debug_mode)})
+    log.info("num_history_runs=%s", {int(self.num_history_runs or 5)})
+
+    log.info("api_key_length=%s", len(api_key))
+    log.info("api_key_preview=%s", mask_secret(api_key, 6))
+
+    model = OpenAILike(
+        id={repr(self.model_id or "")},
+        base_url={repr(self.base_url or "")},
+        api_key=api_key,
+    )
+
+    db = SqliteDb(db_file={repr(self.db_file or "agent.db")})
+
+    agent = Agent(
+        name={repr(self.agent_name or "")},
+        role={repr(self.agent_role or "")},
+        model=model,
+        instructions={repr(self.instructions or "")},
+        db=db,
+        add_history_to_context={bool(self.add_history_to_context)},
+        add_datetime_to_context={bool(self.add_datetime_to_context)},
+        markdown={bool(self.markdown)},
+        debug_mode={bool(self.debug_mode)},
+        num_history_runs={int(self.num_history_runs or 5)},
+    )
+
+    agent_os = AgentOS(agents=[agent])
+    app = agent_os.get_app()
+
+    log.info("Serving on http://%s:%s", {repr(self.host or "0.0.0.0")}, {int(self.port)})
+    agent_os.serve(app=app, host={repr(self.host or "0.0.0.0")}, port={int(self.port)}, reload=False)
 
 if __name__ == "__main__":
-    print("Starting Agent '{self.agent_name}' on http://{self.host}:{self.port}")
-    agent_os.serve(app=app, host="{self.host}", port={self.port}, reload=False)
+    try:
+        main()
+    except Exception as e:
+        log.error("Agent crashed: %s", e)
+        log.error(traceback.format_exc())
+        raise
 '''
         return script
 
-    # ------------------------
-    # Cron/maintenance
-    # ------------------------
     @api.model
     def check_agent_status(self):
-        """Check and update status of all active agents (by port if available, otherwise by PID)"""
         active_agents = self.search([("is_active", "=", True)])
-
         for agent in active_agents:
-            # Prefer checking by port because PID may not be the listener PID
             if agent._ss_available():
                 try:
                     if not agent._get_listening_pids(agent.port):
@@ -375,7 +410,6 @@ if __name__ == "__main__":
                         )
                     continue
                 except Exception:
-                    # fall back to PID check below
                     pass
 
             if agent.process_pid:
@@ -391,7 +425,6 @@ if __name__ == "__main__":
                         }
                     )
             else:
-                # No PID and can't check port => assume stopped
                 agent.write(
                     {
                         "is_active": False,

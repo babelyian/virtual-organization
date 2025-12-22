@@ -102,13 +102,11 @@
                                 <group string="Model Settings">
                                     <field name="model_id"/>
                                     <field name="base_url"/>
-                                    <field name="api_key_env"/>
+                                    <field name="api_key" widget="password"/>
                                 </group>
                             </group>
                             <div class="alert alert-info" role="alert">
-                                <strong>Note:</strong> Make sure the API key environment variable is set in your system.
-                                <br/>Current environment variable:
-                                <code><field name="api_key_env" readonly="1"/></code>
+                            <strong>Note:</strong> The API key is stored in Odoo and only visible to System administrators.
                             </div>
                         </page>
 
