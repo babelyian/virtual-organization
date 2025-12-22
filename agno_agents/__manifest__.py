@@ -8,10 +8,10 @@
         - Create and configure Agno agents
         - Simple agent property management
         - Agent activation/deactivation
-        - Serves agents on port 7777
+        - Serves agents on specified port
     ''',
     'author': 'Your Company',
-    'website': 'https://www.yourcompany.com',
+    'website': 'https://www.burna.com',
     'category': 'Tools',
     'depends': ['base', 'mail'],
     'version_info': (19, 0, 1),
