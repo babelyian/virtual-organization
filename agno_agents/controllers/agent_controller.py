@@ -41,7 +41,6 @@ class AgnoAgentController(http.Controller):
 
     @http.route('/agno_agents/stop/<int:agent_id>', type='json', auth='user', methods=['POST'])
     def stop_agent(self, agent_id):
-        """Stop an agent via JSON endpoint"""
         try:
             agent = request.env['agno.agent'].browse(agent_id)
             if not agent.exists():
@@ -55,7 +54,6 @@ class AgnoAgentController(http.Controller):
 
     @http.route('/agno_agents/agent/<int:agent_id>/info', type='json', auth='user')
     def get_agent_info(self, agent_id):
-        """Get detailed information about a specific agent"""
         try:
             agent = request.env['agno.agent'].browse(agent_id)
             if not agent.exists():
