@@ -1,6 +1,6 @@
 # Odoo
 
-
+sudo -u postgres psql -d burna
 
 ## Getting started
 
