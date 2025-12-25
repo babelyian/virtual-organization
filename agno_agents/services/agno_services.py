@@ -18,7 +18,6 @@ class AgnoAgentService:
 
     DEFAULT_VENV_PY = "/opt/odoo19/venv/bin/python"
 
-
     @staticmethod
     def script_path(agent_id: int):
 
