@@ -17,6 +17,7 @@
     'version_info': (19, 0, 1),
     'data': [
         'security/ir.model.access.csv',
+        'data/agno_server_actions.xml',
         'views/agno_agent_views.xml',
         'views/agno_menus.xml',
     ],

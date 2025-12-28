@@ -15,14 +15,16 @@
                 <field name="is_active" widget="boolean_toggle"/>
                 <field name="port"/>
                 <field name="last_started"/>
-                <button name="action_start_agent"
-                        type="object"
+
+                <button name="%(agno_server_action_start_agents)d"
+                        type="action"
                         string="Start"
                         class="btn-success"
                         invisible="is_active"
                         icon="fa-play"/>
-                <button name="action_stop_agent"
-                        type="object"
+
+                <button name="%(agno_server_action_stop_agents)d"
+                        type="action"
                         string="Stop"
                         class="btn-danger"
                         invisible="not is_active"
@@ -39,16 +41,24 @@
         <field name="arch" type="xml">
             <form string="Agno Agent">
                 <header>
-                    <button name="action_start_agent"
-                            type="object"
+                    <button name="%(agno_server_action_start_agents)d"
+                            type="action"
                             string="Start Agent"
                             class="btn-primary"
                             invisible="is_active"/>
-                    <button name="action_stop_agent"
-                            type="object"
+                    <button name="%(agno_server_action_stop_agents)d"
+                            type="action"
                             string="Stop Agent"
                             class="btn-secondary"
                             invisible="not is_active"/>
+
+                    <!-- Optional -->
+                    <button name="%(agno_server_action_refresh_agents)d"
+                            type="action"
+                            string="Refresh Status"
+                            class="btn-light"
+                            icon="fa-refresh"/>
+
                     <field name="status"
                            widget="statusbar"
                            statusbar_visible="stopped,starting,running,stopping,error"/>
@@ -106,7 +116,7 @@
                                 </group>
                             </group>
                             <div class="alert alert-info" role="alert">
-                            <strong>Note:</strong> The API key is stored in Odoo and only visible to System administrators.
+                                <strong>Note:</strong> The API key is stored in Odoo and only visible to System administrators.
                             </div>
                         </page>
 
@@ -171,12 +181,14 @@
                                 </div>
 
                                 <div class="oe_kanban_bottom_left">
-                                    <button name="action_start_agent" type="object"
+                                    <button name="%(agno_server_action_start_agents)d"
+                                            type="action"
                                             class="btn btn-primary btn-sm"
                                             t-if="!record.is_active.raw_value">
                                         <i class="fa fa-play"/> Start
                                     </button>
-                                    <button name="action_stop_agent" type="object"
+                                    <button name="%(agno_server_action_stop_agents)d"
+                                            type="action"
                                             class="btn btn-secondary btn-sm"
                                             t-if="record.is_active.raw_value">
                                         <i class="fa fa-stop"/> Stop
