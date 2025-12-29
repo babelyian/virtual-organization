@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Optional: make nicer bot avatar/name -->
+    <record id="partner_agno_bot" model="res.partner">
+        <field name="name">Agno Agent</field>
+        <field name="company_id" eval="False"/>
+        <field name="is_company" eval="False"/>
+    </record>
+
+</odoo>

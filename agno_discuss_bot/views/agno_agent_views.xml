@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_discuss_channel_form_inherit_agno" model="ir.ui.view">
+        <field name="name">discuss.channel.form.inherit.agno</field>
+        <field name="model">discuss.channel</field>
+        <field name="inherit_id" ref="mail.discuss_channel_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='channel_type']" position="after">
+                <field name="is_agno_bot_channel"/>
+                <field name="agno_agent_name" invisible="not is_agno_bot_channel"/>
+                <field name="agno_agent_base_url" invisible="not is_agno_bot_channel"/>
+                <field name="agno_session_id" readonly="1" invisible="not is_agno_bot_channel"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
