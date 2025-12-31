@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Extend user form to show Agno Bot fields -->
+    <record id="view_users_form_inherit_agno_bot" model="ir.ui.view">
+        <field name="name">res.users.form.inherit.agno.bot</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook/page[@name='preferences']" position="inside">
+                <group string="Agno Bot Configuration">
+                    <field name="is_agno_bot"/>
+                    <field name="agno_agent_name" invisible="not is_agno_bot" required="is_agno_bot"/>
+                    <field name="agno_agent_base_url" invisible="not is_agno_bot" required="is_agno_bot"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
