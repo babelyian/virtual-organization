@@ -29,15 +29,16 @@ class DiscussChannel(models.Model):
         return message
 
     def _send_to_agno_agent(self, user_message, bot_user):
+    
         self.ensure_one()
 
         url = f"{bot_user.agno_agent_base_url.rstrip('/')}/agents/{bot_user.agno_agent_name}/runs"
-        session_id = f"odoo_chat_{self.uuid}" 
+        session_id = f"odoo_chat_{self.uuid}"
 
         payload = {
             'message': user_message.strip(),
             'session_id': session_id,
-            # 'stream': 'True',  # Uncomment if your agent supports streaming
+            'stream': 'True',
         }
 
         _logger.info("Sending to Agno agent [%s] from bot [%s] → %s", self.name, bot_user.name, user_message[:80])
@@ -47,31 +48,36 @@ class DiscussChannel(models.Model):
                 url,
                 data=payload,
                 headers={'Content-Type': 'application/x-www-form-urlencoded'},
-                timeout=90,
-                stream=False,
+                timeout=120,
+                stream=True,
             )
             response.raise_for_status()
 
-            try:
-                data = response.json()
-            except json.JSONDecodeError:
-                _logger.warning("Agno agent returned non-JSON response")
-                self._post_bot_reply(_("Agent returned invalid response format."), bot_user, is_error=True)
-                return
+            full_content = ""
+            for line in response.iter_lines():
+                if line:
+                    decoded_line = line.decode('utf-8').strip()
+                    _logger.debug("SSE line: %s", decoded_line)
 
-            content = data.get('content', '').strip()
-            status = data.get('status', 'UNKNOWN')
+                    if decoded_line.startswith('data: '):
+                        data_str = decoded_line[6:].strip()
+                        try:
+                            event_data = json.loads(data_str)
+                            # Accumulate content from RunContent events
+                            if event_data.get('event') == 'RunContent':
+                                full_content += event_data.get('content', '')
+                            # Check for final completion
+                            elif event_data.get('event') == 'RunCompleted':
+                                full_content = event_data.get('content', full_content).strip()
+                                break
+                        except json.JSONDecodeError:
+                            _logger.debug("Non-JSON SSE data: %s", data_str)
+                            full_content += data_str + "\n"
 
-            if status == 'COMPLETED' and content:
-                self._post_bot_reply(content, bot_user)
-            elif status in ('ERROR', 'FAILED'):
-                error_msg = data.get('error', data.get('reasoning_content', 'Unknown error'))
-                self._post_bot_reply(f"**Agent Error**: {error_msg}", bot_user, is_error=True)
+            if full_content:
+                self._post_bot_reply(full_content, bot_user)
             else:
-                msg = f"**Agent response** (status: {status})\n\n{content}"
-                if 'reasoning_content' in data:
-                    msg += f"\n\n**Reasoning**:\n{data['reasoning_content']}"
-                self._post_bot_reply(msg, bot_user)
+                self._post_bot_reply("Agent returned empty response.", bot_user, is_error=True)
 
         except requests.exceptions.RequestException as e:
             _logger.error("Agno agent communication failed: %s", str(e))
@@ -83,6 +89,7 @@ class DiscussChannel(models.Model):
                 bot_user,
                 is_error=True
             )
+
 
     def _post_bot_reply(self, body, bot_user, message_type='comment', is_error=False):
         bot_partner = bot_user.partner_id
