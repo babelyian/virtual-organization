@@ -132,7 +132,7 @@ class AgnoAgentService:
             "agent_name": agent.agent_name or "",
             "agent_role": agent.agent_role or "",
             "instructions": agent.instructions or "",
-            "model_id": agent.model_id or "",
+            "model_name": agent.model_name or "",
             "base_url": agent.base_url or "",
             "api_key": agent.api_key or "",
             "db_file": agent.db_file or "agent.db",

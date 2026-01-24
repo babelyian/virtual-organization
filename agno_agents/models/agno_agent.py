@@ -16,7 +16,12 @@ class AgnoAgent(models.Model):
     agent_role = fields.Text("Agent Role", required=True, help="Description of the agent's role and capabilities")
     instructions = fields.Text("Instructions", help="Additional instructions for the agent")
 
-    model_id = fields.Char("Model ID", required=True, default="gpt-oss:20b", help="AI model identifier")
+    #model_id = fields.Char("Model ID", required=True, default="gpt-oss:20b", help="AI model identifier")
+    model_name = fields.Selection([
+        ('gpt-oss:20b', 'GPT-OSS 20B'),
+        ('Qwen3-Instruct:30b', 'Qwen3-Instruct 30B'),
+        ('gemma-3:27b', 'Gemma-3 27B'),
+    ], string='Model', required=True, default='gemma-3:27b')
     base_url = fields.Char("Base URL", required=True, default="https://chat.aiahura.com/api/v1", help="API base URL")
     api_key = fields.Char("API Key", required=True, help="API key used for the model provider (stored in Odoo).")
 

@@ -59,14 +59,14 @@ def main():
     log.info("agent_name=%s", cfg.get("agent_name", ""))
     log.info("host=%s", cfg.get("host", "0.0.0.0"))
     log.info("port=%s", cfg.get("port", 7777))
-    log.info("model_id=%s", cfg.get("model_id", ""))
+    log.info("model_name=%s", cfg.get("model_name", ""))
     log.info("base_url=%s", cfg.get("base_url", ""))
     log.info("db_file=%s", cfg.get("db_file", "agent.db"))
     log.info("api_key_length=%s", len(api_key))
     log.info("api_key_preview=%s", mask_secret(api_key, 6))
 
     model = OpenAILike(
-        id=cfg.get("model_id", ""),
+        id=cfg.get("model_name", ""),
         base_url=cfg.get("base_url", ""),
         api_key=api_key,
     )
