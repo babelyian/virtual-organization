@@ -8,10 +8,10 @@
     'author': "Mansour",
     'category': 'Tools',
     'version': '1.0.0',
-    'depends': ['mail'],
+    'depends': ['mail', 'agno_agents'],
     'data': [
         'security/ir.model.access.csv',
-        'views/res_users_views.xml',
+        'views/res_users_views.xml',   
     ],
     'installable': True,
     'application': True,
