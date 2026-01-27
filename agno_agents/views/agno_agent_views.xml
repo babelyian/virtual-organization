@@ -120,14 +120,22 @@
                             </div>
                         </page>
 
-                        <page string="Status &amp; Logs" name="status">
+                        <page string="Smart Bucket" name="smart_bucket">
                             <group>
-                                <field name="error_message" widget="text" readonly="1"
-                                       invisible="not error_message"/>
+                                <group string="Trino Connection">
+                                    <field name="trino_host" placeholder="trino.example.local"/>
+                                    <field name="trino_port"/>
+                                    <field name="trino_user"/>
+                                </group>
+                                <group string="Trino Target">
+                                    <field name="trino_catalog"/>
+                                    <field name="trino_schema"/>
+                                    <field name="trino_table"/>
+                                </group>
                             </group>
-                            <div class="alert alert-warning" role="alert" invisible="not error_message">
-                                <strong>Error Details:</strong>
-                                <p><field name="error_message" readonly="1"/></p>
+
+                            <div class="alert alert-info" role="alert">
+                                <strong>Tip:</strong> These settings will be used by the Smart Bucket logic to query Trino.
                             </div>
                         </page>
                     </notebook>

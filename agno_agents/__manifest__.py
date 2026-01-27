@@ -18,6 +18,7 @@
     'data': [
         'security/ir.model.access.csv',
         'data/agno_server_actions.xml',
+        'data/ir_cron.xml',
         'views/agno_agent_views.xml',
         'views/agno_menus.xml',
     ],

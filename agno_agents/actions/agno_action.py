@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
+import json
 import logging
+import requests
 
 from odoo import models, fields, _
 from odoo.exceptions import UserError
@@ -11,19 +14,10 @@ _logger = logging.getLogger(__name__)
 
 
 class AgnoAction(models.AbstractModel):
-    """
-    UI/Business actions invoked by ir.actions.server.
 
-    - start_agents(records)
-    - stop_agents(records)
-    - is_agent_alive(agent) helper (used by agno.agent.check_agent_status)
-    """
     _name = "agno.action"
     _description = "Agno Agent Actions"
 
-    # ---------------------------
-    # Helpers
-    # ---------------------------
     @staticmethod
     def _pid_exists(pid: int) -> bool:
         if not pid or pid <= 0:
@@ -34,17 +28,12 @@ class AgnoAction(models.AbstractModel):
         except ProcessLookupError:
             return False
         except PermissionError:
-            # PID exists but we can't signal it; treat as alive to avoid false negatives.
             return True
         except OSError:
             return False
 
     def is_agent_alive(self, agent) -> bool:
-        """
-        Returns True if agent seems alive:
-        - prefer port check via ss if available
-        - fallback to PID existence
-        """
+
         agent.ensure_one()
 
         if AgnoAgentService.ss_available():
@@ -56,14 +45,8 @@ class AgnoAction(models.AbstractModel):
 
         return self._pid_exists(agent.process_pid)
 
-    # ---------------------------
-    # Actions called by Server Actions
-    # ---------------------------
     def start_agents(self, agents):
-        """
-        Start selected agno.agent record(s).
-        Updates DB state (status/is_active/process_pid/last_started/error_message).
-        """
+
         if not agents:
             return True
 
@@ -76,7 +59,6 @@ class AgnoAction(models.AbstractModel):
             if not agent.api_key:
                 raise UserError(_("API Key is required to start agent '%s'.") % (agent.agent_name or agent.id))
 
-            # DB update: starting
             agent.write({"status": "starting", "error_message": False})
 
             try:
@@ -99,10 +81,7 @@ class AgnoAction(models.AbstractModel):
         return True
 
     def stop_agents(self, agents):
-        """
-        Stop selected agno.agent record(s).
-        Updates DB state (status/is_active/process_pid/last_stopped/error_message).
-        """
+
         if not agents:
             return True
 
@@ -136,10 +115,7 @@ class AgnoAction(models.AbstractModel):
         return True
 
     def refresh_agents(self, agents):
-        """
-        Optional helper for a 'Refresh Status' UI button.
-        (Simply calls liveness check and sets stopped if dead.)
-        """
+
         if not agents:
             return True
 
@@ -163,3 +139,79 @@ class AgnoAction(models.AbstractModel):
                     }
                 )
         return True
+
+
+    def run_prompt(self, agent, user_message: str, session_id: str = None, timeout: int = 120) -> str:
+
+        if not agent:
+            raise UserError(_("No agent provided."))
+
+        agent.ensure_one()
+
+        host = agent.host or "127.0.0.1"
+        if host == "0.0.0.0":
+            host = "127.0.0.1"
+
+        if not agent.agent_name:
+            raise UserError(_("Agent has no agent_name."))
+
+        url = f"http://{host}:{agent.port}/agents/{agent.agent_name}/runs"
+        session_id = session_id or "odoo_cron_broadcast"
+
+        payload = {
+            "message": (user_message or "").strip(),
+            "session_id": session_id,
+            "stream": True,
+        }
+
+        _logger.info(
+            "run_prompt → Agno [%s:%s/%s] session=%s msg=%s",
+            host, agent.port, agent.agent_name, session_id, (user_message or "")[:120],
+        )
+
+        try:
+            response = requests.post(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=timeout,
+                stream=True,
+            )
+            response.raise_for_status()
+
+            full_content = ""
+            for line in response.iter_lines():
+                if not line:
+                    continue
+
+                decoded_line = line.decode("utf-8", errors="ignore").strip()
+                _logger.debug("SSE line: %s", decoded_line)
+
+                if not decoded_line.startswith("data:"):
+                    continue
+
+                data_str = decoded_line[5:].strip()
+
+                try:
+                    event_data = json.loads(data_str)
+                    ev = event_data.get("event")
+
+                    if ev == "RunContent":
+                        full_content += event_data.get("content", "") or ""
+                    elif ev == "RunCompleted":
+                        final = (event_data.get("content") or "").strip()
+                        full_content = final or full_content.strip()
+                        break
+
+                except json.JSONDecodeError:
+                    full_content += data_str + "\n"
+
+            return (full_content or "").strip()
+
+        except requests.exceptions.RequestException as e:
+            _logger.error("Agno agent communication failed: %s", str(e))
+            msg = str(e)
+            if "Connection refused" in msg:
+                msg = "Cannot connect to agent server. Is it running?"
+            raise UserError(_(msg))
+
