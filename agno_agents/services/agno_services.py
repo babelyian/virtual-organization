@@ -16,7 +16,7 @@ _logger = logging.getLogger(__name__)
 class AgnoAgentService:
 
 
-    DEFAULT_VENV_PY = "/opt/odoo19/venv/bin/python"
+    DEFAULT_VENV_PY = "/usr/bin/python3"
 
     @staticmethod
     def script_path(agent_id: int):
