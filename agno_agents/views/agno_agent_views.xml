@@ -121,7 +121,14 @@
                         </page>
 
                         <page string="Smart Bucket" name="smart_bucket">
+
+                        
                             <group>
+
+                                <group string="Mode">
+                                    <field name="is_reporter"/>
+                                    <field name="base_prompt" widget="text"/>
+                                </group>
                                 <group string="Trino Connection">
                                     <field name="trino_host" placeholder="trino.example.local"/>
                                     <field name="trino_port"/>
@@ -132,6 +139,10 @@
                                     <field name="trino_schema"/>
                                     <field name="trino_table"/>
                                 </group>
+                            </group>
+
+                            <group string="Smart Bucket SQL">
+                                <field name="trino_sql" widget="text"/>
                             </group>
 
                             <div class="alert alert-info" role="alert">

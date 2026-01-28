@@ -52,13 +52,23 @@ class AgnoAgent(models.Model):
     last_started = fields.Datetime("Last Started", readonly=True)
     last_stopped = fields.Datetime("Last Stopped", readonly=True)
     process_pid = fields.Integer("Process PID", readonly=True)
-    
     trino_host = fields.Char("Trino Host", default="10.20.30.170")
     trino_port = fields.Integer("Trino Port", default=8082)
     trino_user = fields.Char("Trino User", default="trino")
     trino_catalog = fields.Char("Trino Catalog", default="hive")
     trino_schema = fields.Char("Trino Schema", default="contest")
     trino_table = fields.Char("Trino Table", default="chunks")
+    is_reporter = fields.Boolean("Reporter", default=False, help="If enabled, cron will run for this agent.")
+    base_prompt = fields.Text(
+        "Base Prompt",
+        default="Provide me a summary of the input text based on your role.",
+        help="Optional per-agent prompt used by cron. If empty, cron will fallback to system parameter agno.cron.prompt."
+    )
+    trino_sql = fields.Text(
+        "Trino SQL",
+        default="SELECT standardized_chunk FROM chunks LIMIT 5",
+        help="SQL used to fetch chunks from Trino. Must return one column: standardized_chunk."
+    )
 
     @api.constrains("agent_name")
     def _check_agent_name(self):
@@ -117,9 +127,7 @@ class AgnoAgent(models.Model):
 
         admin = self.env.ref("base.user_admin", raise_if_not_found=False) or self.env["res.users"].sudo().browse(1)
         admin_partner = admin.partner_id
-
         Channel = self.env["discuss.channel"].sudo()
-
         channel = Channel.search([("name", "=", channel_name)], limit=1)
 
         if not channel:
@@ -132,10 +140,6 @@ class AgnoAgent(models.Model):
             channel.write({"channel_partner_ids": [(4, admin_partner.id)]})
 
         return channel
-
-    def _to_html(self, text: str) -> str:
-        safe = html.escape(text or "")
-        return safe.replace("\n", "<br/>")
 
     @api.model
     def _post_to_notify_channel(self, subject: str, body: str, channel_name="agno-cron"):
@@ -170,19 +174,16 @@ class AgnoAgent(models.Model):
             http_scheme="http",
         )
 
-    def _fetch_standardized_chunks(self, limit: int = 5):
+    def _fetch_info(self):
+
         self.ensure_one()
 
-        if not self.trino_table:
+        sql = (self.trino_sql or "").strip()
+        if not sql:
             raise UserError(
-                _("Trino table not configured for agent '%s'") % self.agent_name
+                _("No SQL provided. Please set 'Trino SQL' in Smart Bucket for agent '%s'.")
+                % (self.agent_name)
             )
-
-        sql = f"""
-            SELECT standardized_chunk
-            FROM {self.trino_table}
-            LIMIT {int(limit)}
-        """
 
         conn = None
         try:
@@ -190,12 +191,20 @@ class AgnoAgent(models.Model):
             cur = conn.cursor()
             cur.execute(sql)
 
-            rows = cur.fetchall()
-            return [r[0] for r in rows if r and r[0]]
+            rows = cur.fetchall() or []
+            chunks = []
+            for r in rows:
+                if not r:
+                    continue
+                val = r[0]
+                if val is None:
+                    continue
+                chunks.append(str(val))
+            return chunks
 
         except Exception as e:
             _logger.exception("Trino query failed for agent %s", self.agent_name)
-            raise UserError(_("Trino query failed: %s") % e)
+            raise UserError(_("Trino query failed for '%s': %s") % (self.agent_name, e))
 
         finally:
             if conn:
@@ -204,103 +213,82 @@ class AgnoAgent(models.Model):
                 except Exception:
                     pass
 
+
     @api.model
     def cron_broadcast_prompt_to_active_agents(self):
 
         ICP = self.env["ir.config_parameter"].sudo()
-        base_prompt = (ICP.get_param("agno.cron.prompt") or "Provide me a summary of the input text based on your role.").strip()
-        channel_name = (ICP.get_param("agno.cron.notify_channel") or "smart-bucket").strip()
-        chunk_limit = int(ICP.get_param("agno.cron.trino_chunk_limit") or 5)
+        agents = self.search([
+            ("is_active", "=", True),
+            ("is_reporter", "=", True),
+        ])
 
-        agents = self.search([("is_active", "=", True)])
+        channel_name = (ICP.get_param("agno.cron.notify_channel") or "smart-bucket").strip()
 
         if not agents:
             self._post_to_notify_channel(
-                subject="Agno Cron Broadcast",
-                body=f"Prompt: {base_prompt}\nNo active agents.",
+                subject="Agno Reporter Cron",
+                body="No active reporter agents found.",
                 channel_name=channel_name,
             )
             return True
 
         action = self.env["agno.action"]
-
         results = []
 
         for agent in agents:
             try:
                 if agent.status != "running":
-                    raise UserError(_("Agent not running"))
+                    raise UserError(_("Agent not running (status=%s)") % (agent.status or "unknown"))
 
-                chunks = agent._fetch_standardized_chunks(limit=chunk_limit)
-
+                base_prompt = (agent.base_prompt or "").strip()
+                if not base_prompt:
+                    raise UserError(_("Base Prompt is empty in Smart Bucket for this agent."))
+                chunks = agent._fetch_info()
                 if chunks:
-                    context = "\n\n".join(
-                        f"[chunk {i+1}]\n{c}" for i, c in enumerate(chunks)
-                    )
-
-                    prompt = f"""
-                        {base_prompt}
-                        {context}
-                    """
+                    context = "\n\n".join(f"[chunk {i+1}]\n{c}" for i, c in enumerate(chunks))
+                    prompt = f"{base_prompt}\n\nContext:\n{context}"
                 else:
                     prompt = base_prompt
 
                 session_id = f"odoo_cron_{uuid.uuid4().hex[:10]}"
                 reply = action.run_prompt(agent, prompt, session_id=session_id)
 
-                results.append(
-                    {
-                        "agent": agent.agent_name,
-                        "ok": True,
-                        "chunks": len(chunks),
-                        "text": reply or "",
-                    }
-                )
+                results.append({
+                    "agent": agent.agent_name,
+                    "ok": True,
+                    "chunks": len(chunks),
+                    "text": (reply or "").strip(),
+                })
 
             except Exception as e:
-                _logger.exception(
-                    "Cron broadcast failed for agent id=%s name=%s",
-                    agent.id,
-                    agent.agent_name,
-                )
+                _logger.exception("Reporter cron failed for agent id=%s name=%s", agent.id, agent.agent_name)
+                results.append({
+                    "agent": agent.agent_name,
+                    "ok": False,
+                    "chunks": 0,
+                    "text": str(e),
+                })
 
-                results.append(
-                    {
-                        "agent": agent.agent_name,
-                        "ok": False,
-                        "chunks": 0,
-                        "text": str(e),
-                    }
-                )
-
-        ok_count = sum(r["ok"] for r in results)
+        ok_count = sum(1 for r in results if r["ok"])
         fail_count = len(results) - ok_count
 
         lines = [
-            f"Prompt: {base_prompt}",
-            f"Chunks per agent: {chunk_limit}",
-            f"Total: {len(results)} | OK: {ok_count} | Failed: {fail_count}",
+            f"Reporter agents processed: {len(results)}",
+            f"OK: {ok_count} | Failed: {fail_count}",
             "",
         ]
 
         for r in results:
             status = "OK" if r["ok"] else "ERROR"
-            preview = (r["text"] or "").replace("\n", " ")
-            lines.append(
-                f"{status} {r['agent']} (chunks={r['chunks']}): {preview}"
-            )
+            preview = (r["text"] or "").replace("\n", " ").strip()
+            lines.append(f"{status} {r['agent']} (rows={r['chunks']}): {preview}")
 
-        subject = (
-            "Agno Cron Broadcast (Some Failed)"
-            if fail_count
-            else "Agno Cron Broadcast (All OK)"
-        )
+        subject = "Agno Reporter Cron (Some Failed)" if fail_count else "Agno Reporter Cron (All OK)"
 
         self._post_to_notify_channel(
             subject=subject,
             body="\n".join(lines),
             channel_name=channel_name,
         )
-
         return True
-
