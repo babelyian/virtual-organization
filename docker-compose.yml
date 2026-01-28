@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  db:
+    image: registry.zdrive.ir/postgres:15
+    container_name: odoo_db
+    network_mode: host
+    environment:
+      POSTGRES_DB: burna
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+    restart: always
+
+  odoo:
+    image: odoo:rc1
+    container_name: odoo_app
+    network_mode: host
+    depends_on:
+      - db
+    environment:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USER: odoo
+      DB_PASSWORD: odoo
+      DB_NAME: burna
+      ODOO_ADMIN_EMAIL: davoudi@gmail.com
+      ODOO_ADMIN_PASSWORD: mansour36002
+    volumes:
+      - ./addons:/mnt/extra-addons
+      - ./config/odoo.conf:/etc/odoo/odoo.conf
+      - odoo-web-data:/var/lib/odoo
+      - ./entrypoint/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
+    entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
+    restart: always
+
+volumes:
+  odoo-db-data:
+  odoo-web-data:

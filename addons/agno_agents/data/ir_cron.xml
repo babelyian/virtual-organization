@@ -5,7 +5,7 @@
         <field name="name">Agno: Broadcast Prompt to Active Agents</field>
         <field name="model_id" ref="model_agno_agent"/>
         <field name="state">code</field>
-        <field name="code">env["agno.agent"].cron_broadcast_prompt_to_active_agents(5)</field>
+        <field name="code">model.cron_broadcast_prompt_to_active_agents()</field>
         <field name="interval_number">10</field>
         <field name="interval_type">minutes</field>
         <field name="active">True</field>
