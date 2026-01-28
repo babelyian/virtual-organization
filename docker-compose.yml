@@ -14,7 +14,7 @@ services:
     restart: always
 
   odoo:
-    image: odoo:rc1
+    image: odoo19:rc1
     container_name: odoo_app
     network_mode: host
     depends_on:
