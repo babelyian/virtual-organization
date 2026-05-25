@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- List view for Agno Agents -->
+    <record id="view_agno_agent_list" model="ir.ui.view">
+        <field name="name">agno.agent.list</field>
+        <field name="model">agno.agent</field>
+        <field name="arch" type="xml">
+            <list string="Agno Agents"
+                  decoration-success="status=='running'"
+                  decoration-danger="status=='error'"
+                  decoration-muted="status=='stopped'">
+                <field name="agent_name"/>
+                <field name="model_name"/>
+                <field name="status" widget="badge"/>
+                <field name="is_active" widget="boolean_toggle"/>
+                <field name="port"/>
+                <field name="last_started"/>
+
+                <button name="%(agno_server_action_start_agents)d"
+                        type="action"
+                        string="Start"
+                        class="btn-success"
+                        invisible="is_active"
+                        icon="fa-play"/>
+
+                <button name="%(agno_server_action_stop_agents)d"
+                        type="action"
+                        string="Stop"
+                        class="btn-danger"
+                        invisible="not is_active"
+                        icon="fa-stop"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form view for Agno Agents -->
+    <record id="view_agno_agent_form" model="ir.ui.view">
+        <field name="name">agno.agent.form</field>
+        <field name="model">agno.agent</field>
+        <field name="priority" eval="100"/>
+        <field name="arch" type="xml">
+            <form string="Agno Agent">
+                <header>
+                    <button name="%(agno_server_action_start_agents)d"
+                            type="action"
+                            string="Start Agent"
+                            class="btn-primary"
+                            invisible="is_active"/>
+                    <button name="%(agno_server_action_stop_agents)d"
+                            type="action"
+                            string="Stop Agent"
+                            class="btn-secondary"
+                            invisible="not is_active"/>
+
+                    <!-- Optional -->
+                    <button name="%(agno_server_action_refresh_agents)d"
+                            type="action"
+                            string="Refresh Status"
+                            class="btn-light"
+                            icon="fa-refresh"/>
+
+                    <field name="status"
+                           widget="statusbar"
+                           statusbar_visible="stopped,starting,running,stopping,error"/>
+                </header>
+
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="agent_name" class="o_text_overflow" placeholder="Agent Name"/>
+                        </h1>
+                        <h2>
+                            <field name="is_active" widget="boolean_toggle"/>
+                            <span class="ms-2">Active</span>
+                        </h2>
+                    </div>
+
+                    <group>
+                        <group string="Basic Information">
+                            <field name="agent_name"/>
+                            <field name="status" readonly="1"/>
+                            <field name="port"/>
+                            <field name="host"/>
+                        </group>
+                        <group string="Timing">
+                            <field name="last_started" readonly="1"/>
+                            <field name="last_stopped" readonly="1"/>
+                            <field name="process_pid" readonly="1" invisible="process_pid == 0"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Agent Configuration" name="config">
+                            <group>
+                                <group string="Agent Properties">
+                                    <field name="agent_role" widget="text"/>
+                                    <field name="instructions" widget="text"/>
+                                </group>
+                                <group string="Agent Settings">
+                                    <field name="add_history_to_context"/>
+                                    <field name="add_datetime_to_context"/>
+                                    <field name="markdown"/>
+                                    <field name="debug_mode"/>
+                                    <field name="num_history_runs"/>
+                                    <field name="db_file"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Model Configuration" name="model">
+                            <group>
+                                <group string="Model Settings">
+                                    <field name="model_name"/>
+                                    <field name="base_url"/>
+                                    <field name="api_key" widget="password"/>
+                                </group>
+                            </group>
+                            <div class="alert alert-info" role="alert">
+                                <strong>Note:</strong> The API key is stored in Odoo and only visible to System administrators.
+                            </div>
+                        </page>
+
+                        <page string="Smart Bucket" name="smart_bucket">
+
+                        
+                            <group>
+
+                                <group string="Mode">
+                                    <field name="is_reporter"/>
+                                    <field name="base_prompt" widget="text"/>
+                                </group>
+                                <group string="Trino Connection">
+                                    <field name="trino_host" placeholder="trino.example.local"/>
+                                    <field name="trino_port"/>
+                                    <field name="trino_user"/>
+                                </group>
+                                <group string="Trino Target">
+                                    <field name="trino_catalog"/>
+                                    <field name="trino_schema"/>
+                                    <field name="trino_table"/>
+                                </group>
+                            </group>
+
+                            <group string="Smart Bucket SQL">
+                                <field name="trino_sql" widget="text"/>
+                            </group>
+
+                            <div class="alert alert-info" role="alert">
+                                <strong>Tip:</strong> These settings will be used by the Smart Bucket logic to query Trino.
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Kanban view for Agno Agents -->
+    <record id="view_agno_agent_kanban" model="ir.ui.view">
+        <field name="name">agno.agent.kanban</field>
+        <field name="model">agno.agent</field>
+        <field name="arch" type="xml">
+            <kanban string="Agno Agents" default_group_by="status">
+                <field name="agent_name"/>
+                <field name="status"/>
+                <field name="is_active"/>
+                <field name="model_name"/>
+                <field name="port"/>
+                <field name="last_started"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_card oe_kanban_global_click">
+                            <div class="o_kanban_image">
+                                <i class="fa fa-robot fa-3x" style="color: green;"
+                                   t-if="record.is_active.raw_value"/>
+                                <i class="fa fa-robot fa-3x" style="color: gray;"
+                                   t-if="!record.is_active.raw_value"/>
+                            </div>
+                            <div class="oe_kanban_details">
+                                <strong class="o_kanban_record_title">
+                                    <field name="agent_name"/>
+                                </strong>
+                                <div class="o_kanban_record_subtitle">
+                                    <field name="model_name"/>
+                                </div>
+
+                                <div class="oe_kanban_bottom_right">
+                                    <span class="badge badge-pill" style="background-color: green;"
+                                          t-if="record.status.raw_value == 'running'">
+                                        Running on port <field name="port"/>
+                                    </span>
+                                    <span class="badge badge-pill" style="background-color: red;"
+                                          t-if="record.status.raw_value == 'error'">
+                                        Error
+                                    </span>
+                                    <span class="badge badge-pill" style="background-color: gray;"
+                                          t-if="record.status.raw_value == 'stopped'">
+                                        Stopped
+                                    </span>
+                                </div>
+
+                                <div class="oe_kanban_bottom_left">
+                                    <button name="%(agno_server_action_start_agents)d"
+                                            type="action"
+                                            class="btn btn-primary btn-sm"
+                                            t-if="!record.is_active.raw_value">
+                                        <i class="fa fa-play"/> Start
+                                    </button>
+                                    <button name="%(agno_server_action_stop_agents)d"
+                                            type="action"
+                                            class="btn btn-secondary btn-sm"
+                                            t-if="record.is_active.raw_value">
+                                        <i class="fa fa-stop"/> Stop
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Action for Agno Agents -->
+    <record id="action_agno_agent" model="ir.actions.act_window">
+        <field name="name">Agno Agents</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">agno.agent</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first Agno Agent!
+            </p>
+            <p>
+                Agno Agents are AI-powered assistants that can help with various tasks.
+                Configure the agent properties, model settings, and start the agent to make it accessible on the specified port.
+            </p>
+        </field>
+    </record>
+
+    <!-- Explicit view sequence for the action -->
+    <record id="action_agno_agent_view_kanban" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_agno_agent_kanban"/>
+        <field name="act_window_id" ref="action_agno_agent"/>
+    </record>
+
+    <record id="action_agno_agent_view_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_agno_agent_list"/>
+        <field name="act_window_id" ref="action_agno_agent"/>
+    </record>
+
+    <record id="action_agno_agent_view_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="3"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_agno_agent_form"/>
+        <field name="act_window_id" ref="action_agno_agent"/>
+    </record>
+</odoo>

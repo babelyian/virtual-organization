@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_activity_reporter_user,activity.reporter.user,model_activity_reporter,base.group_user,1,1,1,1
+access_activity_reporter_manager,activity.reporter.manager,model_activity_reporter,base.group_system,1,1,1,1

@@ -5,7 +5,7 @@ ODOO_CONF="/etc/odoo/odoo.conf"
 ODOO_BIN=$(which odoo)
 
 echo "Waiting for PostgreSQL..."
-until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER"; do
+until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"; do
   sleep 2
 done
 
