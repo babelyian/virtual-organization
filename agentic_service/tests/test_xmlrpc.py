@@ -1,10 +1,10 @@
 import xmlrpc.client
 
 url = 'http://localhost:8069'
-username = 'mahanbabelian@gmail.com'
-password = 'mahan1234'
+username = 'admin'
+password = 'admin'
 db = 'burna'
-API_KEY = '105455be154b024f12281829642cb134d41d8768'
+# API_KEY = '105455be154b024f12281829642cb134d41d8768'
 
 common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
 # print(common.version())

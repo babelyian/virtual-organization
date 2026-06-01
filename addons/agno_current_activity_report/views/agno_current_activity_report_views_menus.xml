@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Main menu -->
+    <menuitem id="menu_agno_current_activity_report_root"
+              name="Agno Current Activity Reporting"
+              web_icon="agno_current_activity_report,static/description/icon.png"
+              sequence="100"/>
+    
+    <menuitem id="menu_agno_current_activity_report"
+            name="Agents"
+            parent="menu_agno_current_activity_report_root"
+            action="agno_current_activity_report.action_agno_current_activity_report"
+            sequence="10"/>
+    <!-- ToDo: change action name -->
+    <!-- Configuration submenu -->
+    <menuitem id="menu_agno_current_activity_report_config"
+              name="Configuration"
+              parent="menu_agno_current_activity_report_root"
+              sequence="20"/>
+
+</odoo>

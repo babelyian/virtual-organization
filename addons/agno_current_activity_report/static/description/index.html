@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Agno Agents Module</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #2c3e50; }
+        h2 { color: #34495e; }
+        .features { background: #f8f9fa; padding: 15px; border-radius: 5px; }
+        .requirements { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        code { background: #f1f2f6; padding: 2px 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Agno Agents Module for Odoo</h1>
+    
+    <p>This module provides integration with Agno AI agents within Odoo, allowing users to define, configure, and manage AI agents directly from the Odoo interface.</p>
+    
+    <div class="features">
+        <h2>Features</h2>
+        <ul>
+            <li>Create and configure Agno agents with custom properties</li>
+            <li>Start and stop agents from Odoo interface</li>
+            <li>Agent status monitoring and management</li>
+            <li>Simple configuration for AI model settings</li>
+            <li>Agents accessible on configurable ports (default: 7777)</li>
+            <li>Support for OpenAI-like model APIs</li>
+        </ul>
+    </div>
+    
+    <div class="requirements">
+        <h2>Installation Requirements</h2>
+        <p><strong>Important:</strong> This module requires the Agno Python library to be installed in your Odoo environment.</p>
+        
+        <h3>Install Agno Library:</h3>
+        <p>Run the following command to install the required Agno library:</p>
+        <code>pip install agno</code>
+        
+        <h3>Environment Variables:</h3>
+        <p>Set up the required environment variable for API access:</p>
+        <code>export API_KEY="your-api-key-here"</code>
+        
+        <h3>System Requirements:</h3>
+        <ul>
+            <li>Python 3.8 or higher</li>
+            <li>Odoo 17.0 or higher</li>
+            <li>Internet connection for AI model API access</li>
+        </ul>
+    </div>
+    
+    <h2>Usage</h2>
+    <ol>
+        <li>Install the module in Odoo</li>
+        <li>Navigate to "Agno Agents" menu</li>
+        <li>Create a new agent with your desired configuration</li>
+        <li>Set the API key environment variable</li>
+        <li>Start the agent to make it accessible on the specified port</li>
+    </ol>
+    
+    <h2>Configuration</h2>
+    <p>Each agent can be configured with:</p>
+    <ul>
+        <li><strong>Agent Name:</strong> Unique identifier for your agent</li>
+        <li><strong>Role:</strong> Description of the agent's purpose and capabilities</li>
+        <li><strong>Model Settings:</strong> AI model ID, base URL, and API configuration</li>
+        <li><strong>Advanced Options:</strong> History settings, debug mode, markdown support</li>
+    </ul>
+    
+    <p><strong>Note:</strong> Agents run as separate processes and will be accessible via HTTP on the configured port.</p>
+</body>
+</html>
