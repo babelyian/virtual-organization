@@ -1,10 +1,10 @@
 import json
 import requests
 
-url = "http://localhost:8069"  # Replace with your Odoo server URL
-db = "your_database"  # Replace with your database name
-username = "your_username"  # Replace with your username
-password = "your_password"  # Replace with your password
+url = 'http://localhost:8069'
+username = 'admin'
+password = 'admin'
+db = 'burna'
 
 # JSON-RPC endpoint
 json_endpoint = f"{url}/jsonrpc"
@@ -90,12 +90,12 @@ try:
 
     # write function (commented out)
     # write_employee_ids = execute_kw(db, user_uid, password, 'hr.employee', 'write',
-    #                                [[14], {'name': 'rpc_test_changed', 'department_id': 5}])
+    #                                [[15], {'name': 'rpc_test_changed', 'department_id': 5}])
     # print("write function ==>", write_employee_ids)
 
     # unlink function (commented out)
-    # unlink_employee_ids = execute_kw(db, user_uid, password, 'hr.employee', 'unlink', [[14]])
-    # print("unlink function ==>", unlink_employee_ids)
+    unlink_employee_ids = execute_kw(db, user_uid, password, 'hr.employee', 'unlink', [[15]])
+    print("unlink function ==>", unlink_employee_ids)
 
 except Exception as e:
     print(f"Error: {e}")

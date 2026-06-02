@@ -95,7 +95,7 @@ class AgnoAgentController(http.Controller):
                 "instructions": payload.get("instructions") or "",
 
                 "model_id": payload.get("model_id") or "gpt-oss:20b",
-                "base_url": payload.get("base_url") or "https://chat.aiahura.com/api/v1",
+                "base_url": payload.get("base_url") or "https://api.metisai.ir/openai/v1",
                 "api_key": api_key,
 
                 "port": int(payload.get("port") or 7777),

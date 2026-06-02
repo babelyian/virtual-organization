@@ -1,34 +1,50 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
 
+
 class ResUsers(models.Model):
     _inherit = "res.users"
 
     is_agno_bot = fields.Boolean(default=False)
 
-    agno_agent_id = fields.Many2one(
-        "agno.agent",
+    # Change to Reference field to allow both models
+    agno_agent_id = fields.Reference(
+        selection=[
+            ('agno.agent', 'Agno Agent'),
+            ('agno.current.activity.report', 'Activity Report Agent'),
+        ],
         string="Linked Agent",
-        domain=[("status", "=", "running")],
+        # domain="[('status', '=', 'running')]",
         help="Select which Agno Agent this bot user should use",
     )
 
+    # For displaying agent name (works with both models)
     agno_agent_name = fields.Char(
-        related="agno_agent_id.agent_name",
-        readonly=True,
-        store=True,
+        compute='_compute_agent_info',
+        store=False,
     )
 
     agno_agent_base_url = fields.Char(
-        related="agno_agent_id.host",
-        readonly=True,
-        store=True,
+        compute='_compute_agent_info',
+        store=False,
     )
+
     agno_agent_port = fields.Integer(
-        related="agno_agent_id.port",
-        readonly=True,
-        store=True,
+        compute='_compute_agent_info',
+        store=False,
     )
+
+    def _compute_agent_info(self):
+        for rec in self:
+            agent = rec.agno_agent_id
+            if agent:
+                rec.agno_agent_name = agent.agent_name
+                rec.agno_agent_base_url = agent.host
+                rec.agno_agent_port = agent.port
+            else:
+                rec.agno_agent_name = False
+                rec.agno_agent_base_url = False
+                rec.agno_agent_port = False
 
     @api.onchange("is_agno_bot")
     def _onchange_is_agno_bot(self):

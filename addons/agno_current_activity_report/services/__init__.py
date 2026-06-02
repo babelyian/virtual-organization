@@ -1,1 +1,1 @@
-from . import agno_services
+from . import external_client

@@ -12,7 +12,6 @@
                     <field name="agno_agent_id"
                            invisible="not is_agno_bot"
                            required="is_agno_bot"
-                           domain="[('status','=','running')]"
                            options="{'no_create': True}"/>
                     <field name="agno_agent_name" readonly="1" invisible="not agno_agent_id"/>
                     <field name="agno_agent_base_url" readonly="1" invisible="not agno_agent_id"/>

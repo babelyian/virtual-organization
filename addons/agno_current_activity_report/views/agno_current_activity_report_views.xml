@@ -93,7 +93,7 @@
                         <page string="Agent Configuration" name="config">
                             <group>
                                 <group string="Agent Properties">
-                                    <!--<field name="agent_role" widget="text"/>-->
+                                    <field name="agent_role" widget="text"/>
                                     <field name="instructions" widget="text"/>
                                 </group>
                                 <group string="Agent Settings">
@@ -103,6 +103,10 @@
                                     <field name="debug_mode"/>
                                     <field name="num_history_runs"/>
                                     <field name="db_file"/>
+                                </group>
+                                <group string="External Service Configuration">
+                                    <field name="external_service_url"/>
+                                    <field name="external_agent_id"/>
                                 </group>
                             </group>
                         </page>

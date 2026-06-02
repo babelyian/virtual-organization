@@ -23,8 +23,9 @@ class AgnoAgent(models.Model):
         ('gpt-oss:20b', 'GPT-OSS 20B'),
         ('Qwen3-Instruct:30b', 'Qwen3-Instruct 30B'),
         ('gemma-3:27b', 'Gemma-3 27B'),
+        ('gpt-4o-mini', 'GPT-4o Mini'),
     ], string='Model', required=True, default='gemma-3:27b')
-    base_url = fields.Char("Base URL", required=True, default="https://chat.aiahura.com/api/v1", help="API base URL")
+    base_url = fields.Char("Base URL", required=True, default="https://api.metisai.ir/openai/v1", help="API base URL")
     api_key = fields.Char("API Key", required=True, help="API key used for the model provider (stored in Odoo).")
 
     add_history_to_context = fields.Boolean("Add History to Context", default=True)

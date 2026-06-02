@@ -4,7 +4,7 @@ from odoo import http, fields, api, SUPERUSER_ID
 from odoo.http import request
 from odoo.exceptions import UserError
 
-from ..services.agno_services import AgnoAgentService
+from ..services.external_client import ExternalAgentClient
 
 AGNO_HTTP_TOKEN = "CHANGE_ME_TO_A_LONG_RANDOM_STRING"
 
@@ -21,7 +21,6 @@ def _su_env():
 
 
 def _get_payload(kwargs=None):
-
     payload = {}
     if kwargs:
         payload.update(kwargs)
@@ -50,17 +49,23 @@ class AgnoAgentController(http.Controller):
             _check_token()
             env = _su_env()
 
-            agents = env["agno.agent"].search([])
+            agents = env["agno.current.activity.report"].search([])
 
             result = []
             for agent in agents:
+                # Get status from external service
+                try:
+                    ext_status = ExternalAgentClient.get_agent_status(agent)
+                except Exception:
+                    ext_status = agent.status
+
                 result.append({
                     "id": agent.id,
                     "name": agent.agent_name,
-                    "status": agent.status,
+                    "status": ext_status,
                     "is_active": agent.is_active,
-                    "port": agent.port,
-                    "model_id": agent.model_id,
+                    "external_service_url": agent.external_service_url,
+                    "model_name": agent.model_name,
                     "last_started": agent.last_started.isoformat() if agent.last_started else None,
                     "error_message": agent.error_message or None,
                 })
@@ -79,46 +84,35 @@ class AgnoAgentController(http.Controller):
             payload = _get_payload(kwargs)
 
             agent_name = (payload.get("agent_name") or "").strip()
-            agent_role = (payload.get("agent_role") or "").strip()
             api_key = (payload.get("api_key") or "").strip()
+            external_service_url = (payload.get("external_service_url") or "").strip()
 
             if not agent_name:
                 return {"success": False, "error": "agent_name is required"}
-            if not agent_role:
-                return {"success": False, "error": "agent_role is required"}
             if not api_key:
                 return {"success": False, "error": "api_key is required"}
+            if not external_service_url:
+                return {"success": False, "error": "external_service_url is required"}
 
             vals = {
                 "agent_name": agent_name,
-                "agent_role": agent_role,
                 "instructions": payload.get("instructions") or "",
-
-                "model_id": payload.get("model_id") or "gpt-oss:20b",
-                "base_url": payload.get("base_url") or "https://chat.aiahura.com/api/v1",
+                "model_name": payload.get("model_name") or "gemma-3:27b",
+                "base_url": payload.get("base_url") or "https://api.metisai.ir/openai/v1",
                 "api_key": api_key,
-
-                "port": int(payload.get("port") or 7777),
-                "host": payload.get("host") or "0.0.0.0",
-
-                "db_file": payload.get("db_file") or "agent.db",
-
+                "external_service_url": external_service_url,
+                "external_agent_id": payload.get("external_agent_id") or "",
                 "add_history_to_context": bool(payload.get("add_history_to_context", True)),
                 "add_datetime_to_context": bool(payload.get("add_datetime_to_context", False)),
                 "markdown": bool(payload.get("markdown", True)),
                 "debug_mode": bool(payload.get("debug_mode", False)),
                 "num_history_runs": int(payload.get("num_history_runs") or 5),
-
                 "is_active": False,
                 "status": "stopped",
-                "process_pid": 0,
                 "error_message": False,
             }
 
-            if AgnoAgentService.ss_available() and AgnoAgentService.port_is_listening(vals["port"]):
-                return {"success": False, "error": f"Port {vals['port']} is already in use."}
-
-            agent = env["agno.agent"].create(vals)
+            agent = env["agno.current.activity.report"].create(vals)
 
             return {
                 "success": True,
@@ -128,9 +122,8 @@ class AgnoAgentController(http.Controller):
                     "name": agent.agent_name,
                     "status": agent.status,
                     "is_active": agent.is_active,
-                    "port": agent.port,
-                    "host": agent.host,
-                    "model_id": agent.model_id,
+                    "external_service_url": agent.external_service_url,
+                    "model_name": agent.model_name,
                     "base_url": agent.base_url,
                 },
             }
@@ -144,7 +137,7 @@ class AgnoAgentController(http.Controller):
             _check_token()
             env = _su_env()
 
-            agent = env["agno.agent"].browse(agent_id)
+            agent = env["agno.current.activity.report"].browse(agent_id)
             if not agent.exists():
                 return {"success": False, "error": "Agent not found"}
 
@@ -154,30 +147,36 @@ class AgnoAgentController(http.Controller):
             if not agent.api_key:
                 return {"success": False, "error": "API Key is required to start the agent."}
 
+            if not agent.external_service_url:
+                return {"success": False, "error": "External service URL is required."}
+
             agent.write({"status": "starting", "error_message": False})
 
-            pid = AgnoAgentService.start_agent_process(agent)
+            # Start agent via external service
+            result = ExternalAgentClient.start_agent(agent)
 
-            agent.write({
-                "is_active": True,
-                "status": "running",
-                "process_pid": pid,
-                "last_started": fields.Datetime.now(),
-                "error_message": False,
-            })
+            if result.get('success', False):
+                agent.write({
+                    "is_active": True,
+                    "status": "running",
+                    "last_started": fields.Datetime.now(),
+                    "error_message": False,
+                })
 
-            return {
-                "success": True,
-                "message": f"Agent {agent.agent_name} started successfully",
-                "pid": pid,
-                "host": agent.host,
-                "port": agent.port,
-            }
+                return {
+                    "success": True,
+                    "message": f"Agent {agent.agent_name} started successfully",
+                    "external_service_url": agent.external_service_url,
+                }
+            else:
+                error_msg = result.get('error', 'Unknown error')
+                agent.write({"status": "error", "error_message": error_msg})
+                return {"success": False, "error": error_msg}
 
         except Exception as e:
             try:
                 env = _su_env()
-                env["agno.agent"].browse(agent_id).write({"status": "error", "error_message": str(e)})
+                env["agno.current.activity.report"].browse(agent_id).write({"status": "error", "error_message": str(e)})
             except Exception:
                 pass
             return {"success": False, "error": str(e)}
@@ -188,7 +187,7 @@ class AgnoAgentController(http.Controller):
             _check_token()
             env = _su_env()
 
-            agent = env["agno.agent"].browse(agent_id)
+            agent = env["agno.current.activity.report"].browse(agent_id)
             if not agent.exists():
                 return {"success": False, "error": "Agent not found"}
 
@@ -197,23 +196,25 @@ class AgnoAgentController(http.Controller):
 
             agent.write({"status": "stopping"})
 
-            attempted = AgnoAgentService.stop_agent_process(agent, term_wait=2.0)
-            warn = False if attempted else "Stop requested, but no running process was found."
+            # Stop agent via external service
+            result = ExternalAgentClient.stop_agent(agent)
 
             agent.write({
                 "is_active": False,
                 "status": "stopped",
-                "process_pid": 0,
                 "last_stopped": fields.Datetime.now(),
-                "error_message": warn,
+                "error_message": "" if result.get('success', False) else result.get('error', ''),
             })
 
-            return {"success": True, "message": f"Agent {agent.agent_name} stopped successfully"}
+            if result.get('success', False):
+                return {"success": True, "message": f"Agent {agent.agent_name} stopped successfully"}
+            else:
+                return {"success": False, "error": result.get('error', 'Unknown error')}
 
         except Exception as e:
             try:
                 env = _su_env()
-                env["agno.agent"].browse(agent_id).write({"status": "error", "error_message": str(e)})
+                env["agno.current.activity.report"].browse(agent_id).write({"status": "error", "error_message": str(e)})
             except Exception:
                 pass
             return {"success": False, "error": str(e)}
@@ -224,23 +225,27 @@ class AgnoAgentController(http.Controller):
             _check_token()
             env = _su_env()
 
-            agent = env["agno.agent"].browse(agent_id)
+            agent = env["agno.current.activity.report"].browse(agent_id)
             if not agent.exists():
                 return {"success": False, "error": "Agent not found"}
+
+            # Get fresh status from external service
+            try:
+                ext_status = ExternalAgentClient.get_agent_status(agent)
+            except Exception:
+                ext_status = agent.status
 
             return {
                 "success": True,
                 "agent": {
                     "id": agent.id,
                     "name": agent.agent_name,
-                    "role": agent.agent_role,
                     "instructions": agent.instructions,
-                    "model_id": agent.model_id,
+                    "model_name": agent.model_name,
                     "base_url": agent.base_url,
-                    "status": agent.status,
+                    "status": ext_status,
                     "is_active": agent.is_active,
-                    "port": agent.port,
-                    "host": agent.host,
+                    "external_service_url": agent.external_service_url,
                     "last_started": agent.last_started.isoformat() if agent.last_started else None,
                     "last_stopped": agent.last_stopped.isoformat() if agent.last_stopped else None,
                     "error_message": agent.error_message,

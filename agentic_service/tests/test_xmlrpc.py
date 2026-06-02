@@ -13,7 +13,9 @@ user_uid = common.authenticate(db, username, password, {})
 # print(user_uid)
 
 model = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
-
+print("*"*65)
+print("XML RPC")
+print("*"*65)
 # search function
 employee_ids = model.execute_kw(db, user_uid, password, 'hr.employee', 'search', [[]])
 print("search function ==>", employee_ids)
@@ -45,3 +47,5 @@ print("search and read function ==>", search_read_employee_ids)
 # unlink function
 # unlink_employee_ids = model.execute_kw(db, user_uid, password, 'hr.employee', 'unlink', [[14]])
 # print("write function ==>", unlink_employee_ids)
+print("*"*65)
+print("*"*65)

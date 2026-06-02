@@ -68,7 +68,6 @@ class DiscussChannel(models.Model):
 
         return bot_users[0], text
 
-
     def _send_to_agno_agent(self, user_message, bot_user):
         self.ensure_one()
 
@@ -76,69 +75,69 @@ class DiscussChannel(models.Model):
         if not agent:
             raise UserError(_("This bot user has no linked agent."))
 
-        host = agent.host or "127.0.0.1"
-        if host == "0.0.0.0":
-            host = "127.0.0.1"
+        # Use external service URL
+        external_service_url = agent.external_service_url.rstrip('/')
+        if not external_service_url.startswith(('http://', 'https://')):
+            external_service_url = f"http://{external_service_url}"
 
-        url = f"http://{host}:{agent.port}/agents/{agent.agent_name}/runs"
+        agent_id = agent.external_agent_id or str(agent.id)
+        url = f"{external_service_url}/agents/{agent_id}/runs"
         session_id = f"odoo_chat_{self.uuid}"
 
         payload = {
             "message": (user_message or "").strip(),
             "session_id": session_id,
-            "stream": True,
+            # "stream": True,  # Remove this - not needed for JSON response
         }
 
         _logger.info(
-            "Sending to Agno agent [%s:%s/%s] from bot [%s] → %s",
-            host, agent.port, agent.agent_name, bot_user.name, (user_message or "")[:80]
+            "Sending to external agent service at %s for agent [%s] from bot [%s] → %s",
+            url, agent.agent_name, bot_user.name, (user_message or "")[:80]
         )
 
         try:
             response = requests.post(
                 url,
-                data=payload,  
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                json=payload,
+                headers={"Content-Type": "application/json"},
                 timeout=120,
-                stream=True,
             )
             response.raise_for_status()
 
-            full_content = ""
-            for line in response.iter_lines():
-                if not line:
-                    continue
+            # Parse JSON response directly (not streaming)
+            result = response.json()
 
-                decoded_line = line.decode("utf-8", errors="ignore").strip()
-                _logger.debug("SSE line: %s", decoded_line)
-
-                if not decoded_line.startswith("data:"):
-                    continue
-
-                data_str = decoded_line[5:].strip()
-                try:
-                    event_data = json.loads(data_str)
-                    if event_data.get("event") == "RunContent":
-                        full_content += event_data.get("content", "")
-                    elif event_data.get("event") == "RunCompleted":
-                        full_content = (event_data.get("content") or full_content).strip()
-                        break
-                except json.JSONDecodeError:
-                    # fallback: treat it as raw chunk
-                    full_content += data_str + "\n"
-
-            if full_content:
-                self._post_bot_reply(full_content, bot_user)
+            # Check if request was successful
+            if result.get('success', False):
+                full_content = result.get('response', '')
+                if full_content:
+                    self._post_bot_reply(full_content, bot_user)
+                else:
+                    self._post_bot_reply("Agent returned empty response.", bot_user, is_error=True)
             else:
-                self._post_bot_reply("Agent returned empty response.", bot_user, is_error=True)
+                error_msg = result.get('error', 'Unknown error')
+                self._post_bot_reply(
+                    f"**Agent Error:**\n{error_msg}",
+                    bot_user,
+                    is_error=True,
+                )
 
         except requests.exceptions.RequestException as e:
-            _logger.error("Agno agent communication failed: %s", str(e))
+            _logger.error("External agent service communication failed: %s", str(e))
             error_text = str(e)
             if "Connection refused" in error_text:
-                error_text = "Cannot connect to agent server. Is it running?"
+                error_text = "Cannot connect to external agent service. Is it running?"
+            elif "404" in error_text:
+                error_text = f"Agent '{agent.agent_name}' not found in external service."
             self._post_bot_reply(
                 f"**Connection Error** with {agent.agent_name}:\n{error_text}",
+                bot_user,
+                is_error=True,
+            )
+        except json.JSONDecodeError as e:
+            _logger.error("Failed to parse response from external service: %s", str(e))
+            self._post_bot_reply(
+                f"**Error**: Invalid response from agent service.\n{str(e)}",
                 bot_user,
                 is_error=True,
             )
