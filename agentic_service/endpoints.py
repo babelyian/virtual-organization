@@ -11,7 +11,10 @@ from contextlib import asynccontextmanager
 # Import your agent components
 from agno.models.openai.like import OpenAILike
 from agno.agent import Agent
-from tools.project_module_tools import get_projects_summary, get_project_tasks_headers, get_task_details
+from tools.project_module import get_projects_summary, get_project_tasks_headers, get_task_details, department_tasks
+from tools.calendar_module import get_list_of_events
+from tools.department_id_by_name import get_department_id_by_name
+from tools.department_summary import get_department_activity_summary
 
 # Configure logging
 logging.basicConfig(
@@ -69,14 +72,24 @@ def create_agent_from_config(config: AgentConfig):
         )
 
         # Use the tools from your tools module
-        tools = [get_projects_summary, get_project_tasks_headers, get_task_details]
+        tools = [
+            get_projects_summary, get_project_tasks_headers, get_task_details,
+            get_list_of_events, get_department_id_by_name, department_tasks, get_department_activity_summary
+        ]
 
         agent = Agent(
             model=model,
             tools=tools,
             markdown=config.markdown,
             debug_mode=config.debug_mode,
-            instructions=config.instructions,
+            instructions="""
+            IMPORTANT 1: When a user mentions a department by name:
+            1. ALWAYS use get_department_id_by_name first
+            2. THEN use department_tasks or get_list_of_events with the ID from step 1 
+            IMPORTANT 2: When a user mentions the activities of a department, ALWAYS use department_tasks and get_list_of_events
+            IMPORTANT 3: 
+            از ابزارها برای جواب دادن به سوالات اضافه کن. جواب تو باید به زبان فارسی/پارسی باشد حتما. در صورت استفاده از لغات انگلیسی در خروجی ابزارها، از آن لغات انگلیسی استفاده نکن و آن ها را به فارسی ترجمه کن حتما.
+            """ + config.instructions,
             name=config.agent_name,
             add_history_to_context=config.add_history_to_context,
             add_datetime_to_context=config.add_datetime_to_context,

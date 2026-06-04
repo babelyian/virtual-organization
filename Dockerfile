@@ -9,10 +9,19 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     libffi-dev \
     libssl-dev \
-    apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
+    curl \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20 (required for latest npm)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean
+
+# Install rtlcss (compatible version for Node.js 20)
+RUN npm install -g npm@10.8.1 && \
+    npm install -g rtlcss
+
 
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir \
