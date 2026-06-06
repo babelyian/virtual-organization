@@ -1,5 +1,5 @@
 from decouple import config
-
+from typing import List, Dict, Optional
 import requests
 
 OPENGIT = "https://opengit.ir/api/v4"
@@ -62,6 +62,7 @@ def project_commits(opengit_url, project_id, headers):
         commits_info = {"commit_creation": commit.get("created_at"),
                         "commit_title": commit.get("title"),
                         "commit_author": commit.get("author_name"),
+                        "commit_author_email": commit.get("author_email"),
                         }
         result["commits"].append(commits_info)
     return result
@@ -120,11 +121,13 @@ def project_id_info(opengit_url, project_id, headers):
 
     return result
 
+
 if __name__ == "__main__":
-    # groups(OPENGIT, HEADERS)
-    # group_info(OPENGIT, 4322, headers=HEADERS)
+    print(groups(OPENGIT, HEADERS))
+    # print(group_info(OPENGIT, GROUP_ID, headers=HEADERS))
     # projects_info(OPENGIT, HEADERS)
-    # project_issues(OPENGIT, PROJECT_ID, HEADERS)
-    # project_users(OPENGIT, PROJECT_ID, HEADERS)
-    # project_commits(OPENGIT, PROJECT_ID, HEADERS)
-    print(project_id_info(OPENGIT, PROJECT_ID, HEADERS))
+    # print(project_issues(OPENGIT, PROJECT_ID, HEADERS))
+    # print(project_users(OPENGIT, 3171, HEADERS))
+    # print(project_members(OPENGIT, 3171, HEADERS))
+    # print(project_commits(OPENGIT, PROJECT_ID, HEADERS))
+    # print(project_id_info(OPENGIT, 3171, HEADERS))

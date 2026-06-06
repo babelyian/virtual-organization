@@ -72,7 +72,7 @@ async def execute_kw_async(url, db, uid, password, model, method, args, kwargs=N
 
 async def get_list_of_events(department_ids:list[Any] = None, time_range: str = None):
     """
-        Fetch calendar events and meetings from Odoo with optional filtering for a specific department or list of departments
+    Fetch calendar events and meetings from Odoo with optional filtering for a specific department or list of departments
 
     Args:
         department_ids: Optional list of department IDs to filter by
