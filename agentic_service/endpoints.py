@@ -15,6 +15,7 @@ from tools.project_module import get_projects_summary, get_project_tasks_headers
 from tools.calendar_module import get_list_of_events
 from tools.department_id_by_name import get_department_id_by_name
 from tools.department_summary import get_department_activity_summary
+from tools.opengit import department_commits
 
 # Configure logging
 logging.basicConfig(
@@ -64,6 +65,8 @@ BASE_URL = os.getenv("METIS_BASE_URL", "https://api.metisai.ir/openai/v1")
 
 def create_agent_from_config(config: AgentConfig):
     """Create an Agno Agent instance from configuration"""
+    with open('prompts/system_prompt.md', 'r', encoding='utf-8') as file:
+        system_prompt = file.read()
     try:
         model = OpenAILike(
             id=config.model_name,
@@ -74,7 +77,8 @@ def create_agent_from_config(config: AgentConfig):
         # Use the tools from your tools module
         tools = [
             get_projects_summary, get_project_tasks_headers, get_task_details,
-            get_list_of_events, get_department_id_by_name, department_tasks, get_department_activity_summary
+            get_list_of_events, get_department_id_by_name, department_tasks, get_department_activity_summary,
+            department_commits
         ]
 
         agent = Agent(
@@ -82,14 +86,11 @@ def create_agent_from_config(config: AgentConfig):
             tools=tools,
             markdown=config.markdown,
             debug_mode=config.debug_mode,
-            instructions="""
-            IMPORTANT 1: When a user mentions a department by name:
-            1. ALWAYS use get_department_id_by_name first
-            2. THEN use department_tasks or get_list_of_events with the ID from step 1 
-            IMPORTANT 2: When a user mentions the activities of a department, ALWAYS use department_tasks and get_list_of_events
-            IMPORTANT 3: 
-            از ابزارها برای جواب دادن به سوالات اضافه کن. جواب تو باید به زبان فارسی/پارسی باشد حتما. در صورت استفاده از لغات انگلیسی در خروجی ابزارها، از آن لغات انگلیسی استفاده نکن و آن ها را به فارسی ترجمه کن حتما.
-            """ + config.instructions,
+            instructions=f"""
+            here is the system prompt in markdown format providing you the ESSENTIAL guardrails:\n
+                {system_prompt}
+            \nand here is the user instruction for you:\n
+                {config.instructions}""",
             name=config.agent_name,
             add_history_to_context=config.add_history_to_context,
             add_datetime_to_context=config.add_datetime_to_context,
