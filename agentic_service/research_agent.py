@@ -1,5 +1,6 @@
 from textwrap import dedent
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from decouple import config
 from agno.agent import Agent
@@ -7,7 +8,26 @@ from agno.models.openai import OpenAIResponses
 from agno.models.openai.like import OpenAILike
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.newspaper4k import Newspaper4kTools
-from agno.tools.tavily import TavilyTools
+from agno.tools import tool
+
+
+@tool
+def search_odoo_docs(query: str) -> str:
+    """Search specifically for Odoo documentation"""
+    from ddgs import DDGS
+
+    # Target Odoo's official domains
+    specific_query = f"site:odoo.com {query}"
+
+    with DDGS() as ddgs:
+        results = list(ddgs.text(specific_query, max_results=5))
+
+    if results:
+        formatted = []
+        for r in results:
+            formatted.append(f"📘 **{r['title']}**\n{r['body']}\n🔗 {r['href']}\n")
+        return "\n".join(formatted)
+    return ""
 
 description=dedent("""\
 You are an elite Odoo technical architect and upgrade specialist with 10+ years of experience. Your expertise encompasses:
@@ -24,44 +44,53 @@ You are an elite Odoo technical architect and upgrade specialist with 10+ years 
 - Common upgrade pitfalls and solutions\
 """)
 
-instructions=dedent("""\
-    IMPORTANT 1: the output of agent should have a VALID MARKDOWN format.
-    IMPORTANT 2: check boxes in markdown file should start with "- [ ]" not "[ ]".
-    1. Research Phase
-   - Extract current version and target version from user's prompt
-   - Find official release notes and changelog for the target version
-   - Identify breaking changes between current and target version
-   - Locate official upgrade documentation from Odoo SA
-   - Search for community experiences and known issues for this specific version pair
+instructions = dedent("""\
+    1. Research Phase 🔍
+       - Extract current_version and target_version from user prompt
+       - Search for: "{target_version} release notes Odoo"
+       - Search for: "Odoo {current_version} to {target_version} upgrade guide"
+       - Search for: "Odoo {target_version} breaking changes"
+       - Search for: "Odoo {target_version} custom module compatibility"
+       - Search for: "Odoo {target_version} Docker upgrade"
+       - Search for: "Odoo {target_version} upgrade tutorial"
+       - Search for: "Odoo {target_version} step by step upgrade"
+       - Include video results if they appear in search
+       - Extract video URLs for the sources section
 
-2. Analysis Phase
-   - Compare database schema changes between versions
-   - Identify affected custom modules (accounting, inventory, purchase, sales, etc.)
-   - Assess Python/Odoo framework API changes
-   - Map dependency updates (PostgreSQL, Python packages, Node dependencies)
-   - Analyze migration complexity and estimated downtime
+    2. Analysis Phase - Use Search Results
+       - Extract breaking changes from official release notes
+       - Identify database migration requirements
+       - Find community reported issues and solutions
+       - Document version-specific API changes
 
-3. Technical Planning Phase
-   - Create pre-upgrade checklist tailored to the version pair
-   - Define backup strategy (database, filestore, custom code)
-   - Define rollback strategy with clear steps
-   - List required tools (Odoo upgrade scripts, OCA migration tools, database utilities)
-   - Determine upgrade order: base modules -> custom -> third-party modules
-
-4. Execution Instructions
-   - Provide step-by-step terminal commands (generic, adaptable to Docker/native/Odoo.sh)
-   - Include database migration sequence with commands
-   - Show custom module adaptation patterns with before/after code examples
-   - List post-upgrade validation steps
-   - Include environment-specific notes (detect or ask: Docker, Odoo.sh, on-premise)
-
-5. Safety & Verification
-   - Validate backups before starting checklist
-   - Test in staging environment first (mandatory)
-   - Verify data integrity post-migration
-   - Provide regression testing checklist
-   - Include rollback procedure if issues arise
-   - Warn about common pitfalls specific to this version pair
+    3. Generate Comprehensive Guide
+       - Include version numbers in all commands and examples
+       - Reference official documentation from search results
+       - Add community tips and warnings
+       - Provide Docker-specific commands based on search findings
+    
+    When citing sources from search results:
+    
+    1. Evaluate Each URL for Authority:
+       - OFFICIAL: odoo.com, odoo.com/documentation, github.com/odoo
+       - COMMUNITY: reddit.com, odoo.com/forum, stackoverflow.com
+       - PARTNER BLOGS: mark as "Partner Blog" not "Official"
+       - UNRELATED: Skip entirely if not about upgrades/migration
+    
+    2. For Official Documentation:
+       - URL must contain: odoo.com/documentation, odoo.com/help, or github.com/odoo/odoo/wiki
+       - Page title must include: "upgrade", "migration", "release notes", or "changelog"
+    
+    3. For Upgrade Guides:
+       - Content must contain: upgrade steps, migration commands, or version comparison
+       - Do NOT use feature announcement blogs as upgrade guides
+    
+    4. If No Official Source Found:
+       - State: "No official upgrade guide found in search results"
+       - Use community sources but clearly mark them as "Community Verified"
+       - Do not fabricate official URLs
+       
+    IMPORTANT 1: do not wrap the output inside a "```markdown ```" code format. just leave the markdown alone.
 """)
 
 expected_output = dedent("""\
@@ -70,308 +99,391 @@ expected_output = dedent("""\
 ================================================================================
 Current Version: {extracted_from_user_prompt}
 Target Version:  {extracted_from_user_prompt}
-Environment Type: {Docker / Odoo.sh / On-Premise / Unknown - ask user}
+Environment Type: {Docker / Odoo.sh / On-Premise}
 Generated: {current_date} at {current_time}
+Search Sources Used: {comma_separated_list_of_URLs_from_search_results}
 ================================================================================
 
-SECTION 1: PRE-UPGRADE ASSESSMENT
+SECTION 1: EXECUTIVE SUMMARY (FROM LATEST SEARCH RESULTS)
 ================================================================================
 
-1.1 Version Analysis
--------------------
-Release Notes Source: [Official Odoo {target_version} changelog]
-Breaking Changes Identified: [Yes/No - with summary]
-Database Migration Required: [Yes/No]
-Estimated Downtime: [minutes/hours]
+Based on official Odoo {target_version} release notes and community reports:
 
-1.2 Dependency Changes
----------------------
-PostgreSQL: [current_version] -> [required_version]
-Python: [current_version] -> [required_version]
-Node.js: [current_version] -> [required_version]
-Key Python Packages: [list changes]
+{Summarize key findings from search results - What's new? Is this a major or minor upgrade? Critical warnings?}
 
-1.3 Custom Modules Impact Assessment
+**Release Date**: {from_search_results}
+**Upgrade Complexity**: {Low/Medium/High - justify from search findings}
+**Official Documentation**: {URL_from_search_results}
+**Community Sentiment**: {positive/concerned/mixed - from forum searches}
+
+================================================================================
+SECTION 2: SEARCH-DRIVEN PRE-UPGRADE ASSESSMENT
+================================================================================
+
+2.1 What Search Results Reveal
+----------------------------
+**Official Release Notes Highlights**:
+{Extract 3-5 key bullet points from official changelog search results}
+
+**Community Reported Issues**:
+{From forum/reddit/stackoverflow search results - actual problems users faced}
+
+**Known Breaking Changes (Official)**:
+{From search results - list specific breaking changes documented by Odoo}
+
+**Migration Time Estimates from Real Users**:
+{From community posts - actual downtime experiences}
+
+2.2 Your Environment Assessment
+-----------------------------
+PostgreSQL Version Required: {from_search_results OR "Unknown - check manually"}
+Python Version Required: {from_search_results OR "Unknown - check manually"}
+Minimum RAM Recommended: {from_search_results}
+Disk Space Needed: {from_search_results}
+
+2.3 Custom Module Impact (Based on Breaking Changes)
+---------------------------------------------------
+Modules Likely Affected Based on Search Results:
+{List module types mentioned in breaking changes - e.g., "Accounting modules changed", "Inventory views updated"}
+
+================================================================================
+SECTION 3: SEARCH-VERIFIED UPGRADE CHECKLIST
+================================================================================
+
+{For each item, add search findings in brackets}
+
+- [ ] Review official upgrade guide - URL: {from_search_results}
+- [ ] Check community upgrade reports - {link_if_found}
+- [ ] Backup database - Command: [command]
+- [ ] Backup filestore - Command: [command]
+- [ ] Test in staging first (MANDATORY per {X} community posts)
+- [ ] Verify custom modules against {list_of_affected_apis_from_search}
+- [ ] Notify users - Estimated downtime: {from_community_experience}
+- [ ] {Any version-specific item found in search results}
+
+================================================================================
+SECTION 4: BREAKING CHANGES (FROM OFFICIAL SOURCES)
+================================================================================
+
+4.1 Database Changes (Official)
+-----------------------------
+{From release notes search results - list specific model/field changes}
+Source: {URL}
+
+4.2 API Changes (Official + Community)
+------------------------------------
+{List deprecated/removed methods found in search results}
+Community workarounds: {if found}
+
+4.3 View/UI Changes (Official)
+----------------------------
+{From changelog - XML/JS/OWL changes}
+Migration patterns: {from official migration guide search}
+
+4.4 Third-Party Module Compatibility (Community)
+----------------------------------------------
+{From forum searches - which modules break, which have updates}
+Verified working: {list}
+Known problematic: {list}
+No information found for: {list - verify manually}
+
+================================================================================
+SECTION 5: STEP-BY-STEP UPGRADE (COMMUNITY-VERIFIED)
+================================================================================
+
+⚠️ IMPORTANT: These steps combine official documentation with community-tested procedures
+
+5.1 Pre-Upgrade Preparation
+---------------------------
+{Steps with community tips in brackets}
+
+Step 1: {command/action}
+   Official says: {from_docs}
+   Community tip: {from_forum}
+
+Step 2: {command/action}
+   Known issue: {from_search_results}
+   Prevention: {community_solution}
+
+5.2 Execution (Tested by Community)
 -----------------------------------
-Total custom modules: [count]
-Modules requiring changes: [count]
-Modules with high complexity changes: [count]
-Critical modules affected: [list with reasons]
+{Each step annotated with search findings}
+
+Step 1: Enable maintenance mode
+   Command: [command]
+   
+Step 2: Create final backup
+   Command: [command]
+   ⚠️ {community_warning_about_backup_issue}
+
+Step 3: Update code to {target_version}
+   Command: [command]
+   Common error: {from_search} → Fix: {community_fix}
+
+Step 4: Update dependencies
+   Command: [command]
+   {Version-specific requirement from search results}
+
+Step 5: Run database migration
+   Command: [command]
+   Expected duration: {from_community_reports}
+   Progress indicators: {what_to_watch_for}
+
+Step 6: Post-migration tasks
+   {Official post-upgrade steps from documentation}
+   {Additional steps recommended by community}
 
 ================================================================================
-SECTION 2: PRE-UPGRADE CHECKLIST
+SECTION 6: COMMON PITFALLS & SOLUTIONS (FROM SEARCH RESULTS)
 ================================================================================
 
-Complete ALL items before proceeding:
+Based on {X} community upgrade reports, these are the most frequent issues:
 
-[ ] Backup database - command: [database backup command for their setup]
-[ ] Backup filestore - command: [filestore backup command]
-[ ] Backup custom addons directory - command: [backup command]
-[ ] Tag current code in version control - command: git tag pre-upgrade-{current_version}
-[ ] Export current modules list - command: [command]
-[ ] Create staging environment clone
-[ ] Test backup restore procedure
-[ ] Notify users of maintenance window
-[ ] Document current performance baseline
+| Issue | Frequency | Official Fix | Community Workaround | Source |
+|-------|-----------|--------------|---------------------|--------|
+| {Issue 1} | {X% of reports} | {official_solution} | {community_solution} | {URL} |
+| {Issue 2} | {X% of reports} | {official_solution} | {community_solution} | {URL} |
+| {Issue 3} | {X% of reports} | {official_solution} | {community_solution} | {URL} |
+
+**Prevention Summary**:
+{List key prevention measures from community experience}
 
 ================================================================================
-SECTION 3: BREAKING CHANGES ANALYSIS
+SECTION 7: CUSTOM MODULE ADAPTATION (FROM COMMUNITY PATTERNS)
 ================================================================================
 
-3.1 Database Schema Changes
---------------------------
-[List of model changes, field additions/removals, table modifications]
+Based on search results, here are adaptation patterns for the affected APIs:
 
-3.2 API Method Changes
----------------------
-[List of deprecated/removed methods with replacements]
-
-3.3 View Inheritance Changes
+7.1 Pattern: {deprecated_pattern_name_from_search}
 ---------------------------
-[Changes to XML view architecture]
+Affects modules: {module_types}
+Official replacement: {from_docs}
+Community adaptation:
+   BEFORE ({current_version}):
+      {code_example}
+   AFTER ({target_version}):
+      {code_example}
+Source: {URL_of_example}
 
-3.4 JavaScript/OWL Changes
--------------------------
-[Frontend framework breaking changes]
+7.2 Pattern: {another_deprecated_pattern}
+---------------------------
+[Same structure as above]
 
-3.5 Third-Party Module Compatibility
+7.3 Modules Needing Complete Rewrite
 -----------------------------------
-[List of incompatible third-party modules and alternatives]
+{From search results - modules where simple adaptation insufficient}
 
 ================================================================================
-SECTION 4: UPGRADE EXECUTION PLAN
+SECTION 8: POST-UPGRADE VALIDATION (COMMUNITY CHECKLIST)
 ================================================================================
 
-4.1 Staging Environment Upgrade (MANDATORY FIRST)
--------------------------------------------------
-Step 1: Clone production to staging
-   Command: [command based on detected environment]
+Community-verified validation tests (from {X} successful upgrades):
 
-Step 2: Run upgrade in staging
-   Command: [command based on environment]
+Immediate Checks (within 5 minutes):
+[ ] Container/Service starts without errors - Command: [command]
+[ ] Login works - Known issue: {if_any}
+[ ] {Critical_flow_1} works - Test: [steps]
+[ ] {Critical_flow_2} works - Test: [steps]
 
-Step 3: Validate staging upgrade
-   [Validation checklist]
+Extended Checks (within 1 hour):
+[ ] Scheduled actions run
+[ ] Email sending works
+[ ] Report generation (PDF)
+[ ] {Custom_module_1} functionality
+[ ] {Custom_module_2} functionality
 
-4.2 Production Upgrade Steps
----------------------------
-Step 1: Put system in maintenance mode
-   Command: [command]
-
-Step 2: Stop services
-   Command: [command]
-
-Step 3: Create final backup
-   Command: [command]
-
-Step 4: Update codebase to {target_version}
-   Command: [git checkout / docker pull / etc.]
-
-Step 5: Update dependencies
-   Command: [pip install / npm install commands]
-
-Step 6: Run database migration
-   Command: [odoo-bin or docker exec command with --update=all]
-
-Step 7: Restart services
-   Command: [command]
-
-Step 8: Disable maintenance mode
-   Command: [command]
+Performance Baseline Comparison:
+   Before: {metrics_from_community_or_estimate}
+   After: {expected_metrics_from_search}
+   Warning signs: {what_to_watch_for}
 
 ================================================================================
-SECTION 5: CUSTOM MODULE ADAPTATION PATTERNS
+SECTION 9: EMERGENCY PROCEDURES (COMMUNITY-TESTED)
 ================================================================================
 
-For each affected pattern, use the following conversions:
+9.1 If Upgrade Fails at Step {common_failure_point_from_search}
+--------------------------------------------------------------
+Symptoms: {from_search_results}
+Likely cause: {from_search}
+Immediate action: {community_fix}
+Rollback commands:
+   Command 1: [command]
+   Command 2: [command]
+Verification: {how_to_confirm_rollback_succeeded}
 
-5.1 Deprecated API Method Pattern
----------------------------------
-BEFORE ({current_version}):
-   [code example of old pattern]
+9.2 If Database Migration Hangs
+-----------------------------
+Community solution: {from_forum}
+Commands: {specific_commands}
+Timeout settings: {recommended_values}
 
-AFTER ({target_version}):
-   [code example of new pattern]
-
-5.2 View Inheritance Pattern
----------------------------
-BEFORE ({current_version}):
-   [XML example]
-
-AFTER ({target_version}):
-   [XML example]
-
-5.3 Field Definition Pattern
----------------------------
-[Before/after examples]
-
-5.4 Security Rule Pattern
-------------------------
-[Before/after examples]
-
-================================================================================
-SECTION 6: POST-UPGRADE VALIDATION
-================================================================================
-
-Run these tests after upgrade completes:
-
-6.1 System Health Checks
------------------------
-[ ] Check server logs for errors - command: [log command]
-[ ] Verify all modules updated - command: [module list command]
-[ ] Check database version - command: [SQL query]
-[ ] Verify filestore accessibility
-
-6.2 Functional Tests
+9.3 Contact Resources
 -------------------
-[ ] Login to web interface
-[ ] Create and save a sale order
-[ ] Create and validate a purchase order
-[ ] Create and post an invoice
-[ ] Run a report (PDF generation)
-[ ] Test each critical custom module
-
-6.3 Performance Tests
---------------------
-[ ] Compare dashboard load time: before [X]s vs after [Y]s
-[ ] Compare database size: before [X]MB vs after [Y]MB
-[ ] Check query execution times
+Official support: {URL_from_search}
+Community help: {forum_thread_URLs}
+GitHub issues: {relevant_issue_trackers}
 
 ================================================================================
-SECTION 7: ROLLBACK PROCEDURE
+SECTION 10: SOURCES & VERIFICATION
 ================================================================================
 
-If upgrade fails or critical issues are found:
+This guide was generated using live search results:
 
-7.1 Complete Rollback Steps
---------------------------
-Step 1: Stop services
-   Command: [command]
+Official Sources (accessed {current_date}):
+- Release Notes: {URL}
+- Upgrade Documentation: {URL}
+- Migration Tools: {URL}
+- API Changes: {URL}
 
-Step 2: Restore database from backup
-   Command: [database restore command]
+Community Sources:
+- Reddit discussions: {URLs}
+- Odoo Forum threads: {URLs}
+- Stack Overflow: {URLs}
+- GitHub issues: {URLs}
+- Medium articles: {URLs}
+- YouTube tutorials: {URLs}
 
-Step 3: Restore filestore
-   Command: [filestore restore command]
-
-Step 4: Revert code to {current_version}
-   Command: [git checkout / docker tag command]
-
-Step 5: Restart services
-   Command: [command]
-
-Step 6: Verify rollback success
-   [Verification steps]
-
-7.2 Partial Rollback (Module Level)
-----------------------------------
-[Steps to rollback individual problematic modules]
+Search Statistics:
+- Total searches performed: {count}
+- Relevant sources found: {count}
+- Community reports analyzed: {count}
+- Conflicting information identified: {yes/no - if yes, note discrepancies}
 
 ================================================================================
-SECTION 8: TROUBLESHOOTING COMMON ISSUES
+SECTION 11: DYNAMIC CONTENT - WHAT'S UNKNOWN
 ================================================================================
 
-| Error Message | Likely Cause | Solution |
-|---------------|--------------|----------|
-| [Error 1]     | [Cause]      | [Fix]    |
-| [Error 2]     | [Cause]      | [Fix]    |
-| [Error 3]     | [Cause]      | [Fix]    |
+Based on available search results, the following information requires manual verification:
+
+{List items that search didn't clearly answer - prompts user to check manually}
+- [ ] {Unknown_item_1} - Check: {suggested_command_or_URL}
+- [ ] {Unknown_item_2} - Check: {suggested_command_or_URL}
+
+To get this information:
+1. Run: {command}
+2. Visit: {URL}
+3. Search for: {suggested_query}
 
 ================================================================================
-SECTION 9: ENVIRONMENT-SPECIFIC NOTES
+SECTION 12: VERSION-SPECIFIC NOTES (FROM SEARCH)
 ================================================================================
 
-9.1 For Docker Environments
---------------------------
-- Volume backup commands: [commands]
-- Container upgrade sequence: [steps]
-- Image tagging strategy: [strategy]
+{target_version} vs {current_version} - Key Differences:
+{From search results - what's actually different between these versions}
 
-9.2 For Odoo.sh Environments
----------------------------
-- Branch strategy: [steps]
-- Staging deployment: [steps]
-- Production deployment: [steps]
+Why Upgrade to {target_version} (from release notes):
+{Benefits listed in official documentation}
 
-9.3 For On-Premise (Native) Environments
----------------------------------------
-- Service management commands: [commands]
-- Virtual environment handling: [steps]
-- Nginx/Apache considerations: [notes]
-
-================================================================================
-SECTION 10: SOURCES & METHODOLOGY
-================================================================================
-
-Official Documentation:
-- Odoo {target_version} Release Notes: [URL or search terms]
-- Odoo Upgrade Documentation: [source]
-- Odoo Migration Tools: [source]
-
-Community Resources:
-- OCA Migration Tools
-- Verified upgrade reports for {current_version} -> {target_version}
-- Community forum threads
-
-Methodology:
-- Breaking changes identified from official changelog
-- Custom module analysis based on API deprecation patterns
-- Upgrade path validated through community experience
+Risks Specific to This Upgrade (from community):
+{Community-reported issues for this specific version pair}
 
 ================================================================================
                             END OF UPGRADE GUIDE
 ================================================================================
 
-IMPORTANT REMINDERS:
-1. Always test in staging FIRST - never upgrade production directly
-2. Verify backups are restorable before starting
-3. Document any custom modifications made during upgrade
-4. Keep maintenance window 2x your estimated time
-5. Have rollback plan ready before executing upgrade
+⏱️ Guide Generation Metadata:
+   - Search results used: ✅
+   - Sources cited: {count}
+   - Community reports analyzed: {count}
+   - Generation timestamp: {current_timestamp}
 
-Generated by Odoo Upgrade Specialist AI
+Generated by Odoo Upgrade Specialist AI using live search data
 ================================================================================
 """)
 
 
 # Create custom DuckDuckGo tool with retry logic
 class ResilientDuckDuckGoTools(DuckDuckGoTools):
-    def web_search(self, query: str, max_results: int = 10) -> str:
-        """Search web with retry logic"""
-        import time
-        from ddgs import DDGS
+    def web_search(self, query: str, max_results: int = 5) -> str:
+        """Search web with retry logic - fixed version"""
 
-        # Try multiple search variations
+        # Try multiple search queries
         search_queries = [
             query,
             f'"{query}"',  # Exact match
-            query.replace("documentation", "guide"),  # Alternative terms
+            query.replace("release notes", "changelog"),
             query.replace("upgrade", "migration"),
+            query.replace("documentation", "guide"),
         ]
 
         for attempt in range(3):  # 3 attempts
-            for search_query in search_queries[:2]:  # Try first 2 variations
+            for search_query in search_queries[:3]:  # Try first 3 variations
                 try:
                     print(f"🔍 Searching: {search_query} (attempt {attempt + 1})")
 
+                    # Import here to avoid initialization issues
+                    from ddgs import DDGS
+
+                    # DDGS doesn't accept headers parameter - remove it
                     with DDGS() as ddgs:
-                        results = list(ddgs.text(search_query, max_results=max_results))
+                        results = list(ddgs.text(
+                            search_query,
+                            max_results=max_results,
+                            region='wt-wt',  # Worldwide
+                            safesearch='moderate',
+                            timelimit='m'  # Past month for recent results
+                        ))
 
                         if results:
                             formatted = []
                             for r in results[:max_results]:
-                                formatted.append(f"- {r['title']}\n  {r['body']}\n  URL: {r['href']}")
+                                formatted.append(
+                                    f"### {r.get('title', 'No title')}\n{r.get('body', 'No content')}\nSource: {r.get('href', 'No URL')}\n")
 
-                            if formatted:
-                                return "\n\n".join(formatted)
+                            print(f"✅ Found {len(results)} results for: {search_query}")
+                            return "\n".join(formatted)
 
                 except Exception as e:
-                    print(f"⚠️ Search failed for '{search_query}': {e}")
+                    print(f"⚠️ Search failed for '{search_query}': {str(e)[:100]}")
                     time.sleep(2)  # Wait before retry
 
             time.sleep(3)  # Wait between attempts
 
-        return f"⚠️ Unable to search for: {query}. Please check internet connection or try manual search."
+        # Return empty string to let agent use knowledge
+        return ""
+
+class DebugResilientDuckDuckGoTools(ResilientDuckDuckGoTools):
+    def web_search(self, query: str, max_results: int = 10) -> str:
+        print(f"\n🔍 WEB SEARCH CALLED for: {query}")
+
+        result = super().web_search(query, max_results)
+
+        if "⚠️" in result or "No results" in result:
+            print(f"❌ SEARCH FAILED: Returning error message")
+            print(f"   Result preview: {result[:100]}...")
+        else:
+            print(f"✅ SEARCH SUCCESS: Found results")
+            print(f"   Result preview: {result[:200]}...")
+
+        return result
+
+
+class CachedSearchTool(ResilientDuckDuckGoTools):
+    def __init__(self, cache_dir="search_cache"):
+        super().__init__()
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(exist_ok=True)
+
+    def web_search(self, query: str, max_results: int = 10) -> str:
+        # Check cache
+        cache_file = self.cache_dir / f"{hash(query)}.json"
+
+        if cache_file.exists():
+            modified_time = datetime.fromtimestamp(cache_file.stat().st_mtime)
+            if datetime.now() - modified_time < timedelta(hours=24):
+                with open(cache_file, 'r') as f:
+                    cached = json.load(f)
+                    print(f"📦 Using cached results for: {query}")
+                    return cached['result']
+
+        # Perform search
+        result = super().web_search(query, max_results)
+
+        # Save to cache
+        with open(cache_file, 'w') as f:
+            json.dump({'query': query, 'result': result, 'timestamp': datetime.now().isoformat()}, f)
+
+        return result
 
 model = OpenAILike(
             id="gpt-4o-mini",
@@ -383,7 +495,7 @@ model = OpenAILike(
 research_agent = Agent(
     model=model,
     # tools=[DuckDuckGoTools(), Newspaper4kTools()],
-    tools=[ResilientDuckDuckGoTools(), Newspaper4kTools()],
+    tools=[CachedSearchTool(), search_odoo_docs, Newspaper4kTools()],
     description=description,
     instructions= instructions,
     expected_output=expected_output,

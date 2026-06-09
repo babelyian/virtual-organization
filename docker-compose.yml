@@ -20,7 +20,7 @@ services:
       - odoo_net
 
   odoo:
-    image: odoo19:rc1
+    image: ghcr.io/odoo/odoo:19.2
     container_name: odoo_app
     depends_on:
       db:
