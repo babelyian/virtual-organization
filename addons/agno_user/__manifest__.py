@@ -17,4 +17,10 @@
     'application': True,
     'auto_install': False,
     'license': 'LGPL-3',
+    'assets': {
+            'web.assets_backend': [
+                'agno_user/static/src/scss/discuss_fix.scss',
+                'agno_user/static/src/js/discuss_override.js',
+            ],
+        },
 }

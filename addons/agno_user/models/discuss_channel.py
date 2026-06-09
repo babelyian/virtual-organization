@@ -149,6 +149,14 @@ class DiscussChannel(models.Model):
         if not body:
             return
 
+        # Add BiDi controls for Persian/RTL text
+        # \u200F is RLM (Right-to-Left Mark)
+        # \u202B is RLE (Right-to-Left Embedding)
+        # \u202C is PDF (Pop Directional Formatting)
+        body = f"\u202B{body}\u202C"
+
+        _logger.info(f"After BiDi repr: {repr(body)}")
+
         if is_error:
             body = f'<span style="color:#e74c3c;"><strong>Agent Error:</strong> {body}</span>'
 
@@ -158,3 +166,4 @@ class DiscussChannel(models.Model):
             message_type=message_type,
             subtype_xmlid="mail.mt_comment",
         )
+

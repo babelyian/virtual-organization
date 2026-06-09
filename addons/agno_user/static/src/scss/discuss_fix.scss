@@ -1,0 +1,13 @@
+// Force all discuss messages to preserve line breaks
+.o_mail_message_body,
+.o_Message_body,
+.oe_chat_message_body {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+}
+
+// For RTL Persian support
+.o_mail_message_body,
+.o_Message_body {
+    unicode-bidi: plaintext !important;
+}

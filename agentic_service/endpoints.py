@@ -65,9 +65,10 @@ BASE_URL = os.getenv("METIS_BASE_URL", "https://api.metisai.ir/openai/v1")
 
 def create_agent_from_config(config: AgentConfig):
     """Create an Agno Agent instance from configuration"""
-    with open('prompts/system_prompt.md', 'r', encoding='utf-8') as file:
-        system_prompt = file.read()
     try:
+        with open('prompts/system_prompt.md', 'r', encoding='utf-8') as file:
+            system_prompt = file.read()
+
         model = OpenAILike(
             id=config.model_name,
             api_key=config.api_key,
@@ -80,7 +81,7 @@ def create_agent_from_config(config: AgentConfig):
             get_list_of_events, get_department_id_by_name, department_tasks, get_department_activity_summary,
             department_commits
         ]
-
+        print("config.markdown:", config.markdown)
         agent = Agent(
             model=model,
             tools=tools,
@@ -289,7 +290,7 @@ async def run_prompt(
             "agent": response_content,
             "timestamp": asyncio.get_event_loop().time()
         })
-
+        print(response_content)
         return {
             "success": True,
             "response": response_content,
