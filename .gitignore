@@ -2,4 +2,5 @@
 docs/
 *.pyc
 .idea
-.DS_Store
+.DS_Store.env
+./agentic_service/.env
